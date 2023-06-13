@@ -1,10 +1,5 @@
 #include "header/server.h"
-
-std::string ReadFile(const std::string &filename) {
-    std::ifstream file(filename);
-    std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    return content;
-}
+#include "../../Shared/header/utils.h"
 
 void Server::openListener(){
     if( bind(this->sd, (struct sockaddr*)&this->addr, this->addr_size) != 0) {
