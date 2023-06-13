@@ -38,6 +38,9 @@ void *Server::sessionHandler(void *client) {
     int sd = *((int*)client);
     while (1) {
         Message* received = new Message(1024,sd);
+        if (received->getStatus() != OK) {
+            break;
+        }
         std::cout << "<" << sd  << "> " << received->getContents() << std::endl;
         delete received;
     }

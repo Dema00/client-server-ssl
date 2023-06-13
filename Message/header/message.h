@@ -16,24 +16,34 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+enum integrity {
+    OK,
+    BROKEN
+};
+
 
 class MessageInterface {
     public:
         virtual void addContents(const char* new_contents) = 0;
         virtual const char* getContents() const = 0;
         virtual void sendMessage(int sd) const = 0;
+        virtual integrity getStatus() const = 0;
+
         virtual ~MessageInterface() {};
 };
 
 class Message: public MessageInterface {
     protected:
         char* contents;
+        integrity status;
     public:
         Message(std::size_t buf_size);
         Message(std::size_t buf_size, int sd);
         void addContents(const char* new_contents) override;
         const char* getContents() const override;
         void sendMessage(int sd) const override;
+        integrity getStatus() const override;
+
         ~Message() {
             delete[] contents;
         };
@@ -48,6 +58,8 @@ class MessageDecorator: public MessageInterface {
         void addContents(const char* new_contents) override;
         const char* getContents() const override;
         void sendMessage(int sd) const override;
+        integrity getStatus() const override;
+
         ~MessageDecorator() {
             delete wrapped_message;
         };

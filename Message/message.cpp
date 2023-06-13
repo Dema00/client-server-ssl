@@ -6,16 +6,23 @@
 
 Message::Message(std::size_t buf_size) {
     this->contents = new char[buf_size];
+    this->status = OK;
     memset(this->contents, 0, buf_size);
 };
 
 Message::Message(std::size_t buf_size, int sd) {
     this->contents = new char[buf_size];
+    this->status = OK;
     memset(this->contents, 0, buf_size);
-    if ( recv(sd,(void*)this->contents,buf_size,0) == -1) {
+
+    int result = recv(sd,(void*)this->contents,buf_size,0);
+    if ( result == -1 ) {
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
-        printf("ERROR WHILE SENDING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
+        printf("ERROR WHILE RECIEVING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
+        abort();
+    } else if (result == 0) {
+        this->status = BROKEN;
     }
 };
 
@@ -36,6 +43,10 @@ void Message::sendMessage(int sd) const {
     }
 }
 
+integrity Message::getStatus() const {
+    return this->status;
+}
+
 
 //  %%%%%%%%%%%%%%%%%
 //  %   DECORATOR   %
@@ -50,8 +61,11 @@ void MessageDecorator::addContents(const char* new_contents) {
     this->wrapped_message->addContents(new_contents);
 };
 const char* MessageDecorator::getContents() const {
-    this->wrapped_message->getContents();
+    return this->wrapped_message->getContents();
 };
 void MessageDecorator::sendMessage(int sd) const {
     this->wrapped_message->sendMessage(sd);
 };
+integrity MessageDecorator::getStatus() const {
+    return this->wrapped_message->getStatus();
+}
