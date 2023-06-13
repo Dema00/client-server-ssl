@@ -20,8 +20,8 @@
 class MessageInterface {
     public:
         virtual void addContents(const char* new_contents) = 0;
-        virtual const char* getContents() = 0;
-        virtual void sendMessage(int sd) = 0;
+        virtual const char* getContents() const = 0;
+        virtual void sendMessage(int sd) const = 0;
         virtual ~MessageInterface() {};
 };
 
@@ -32,9 +32,23 @@ class Message: public MessageInterface {
         Message(std::size_t buf_size);
         Message(std::size_t buf_size, int sd);
         void addContents(const char* new_contents) override;
-        const char* getContents() override;
-        void sendMessage(int sd) override;
+        const char* getContents() const override;
+        void sendMessage(int sd) const override;
         ~Message() {
             delete[] contents;
+        };
+};
+
+class MessageDecorator: public MessageInterface {
+    protected:
+        MessageInterface* wrapped_message;
+    
+    public:
+        MessageDecorator(Message *message);
+        void addContents(const char* new_contents) override;
+        const char* getContents() const override;
+        void sendMessage(int sd) const override;
+        ~MessageDecorator() {
+            delete wrapped_message;
         };
 };

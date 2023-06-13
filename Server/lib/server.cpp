@@ -25,7 +25,7 @@ void Server::connectionManager() {
         printf("Connection: %s:%d\n",inet_ntoa(this->addr.sin_addr), ntohs(this->addr.sin_port));
 
         if (pthread_create(&this->thread_id, NULL, this->sessionHandler, (void*)&client)) {
-			std::cout << "Error starting connection handler thread... did you compile with the right flag?" << std::endl;
+			std::cout << "Error starting session handler thread... did you compile with the right flag?" << std::endl;
 			close(client);
 		}else {
 			pthread_detach(this->thread_id);
