@@ -2,8 +2,11 @@
 #define SERVER_H
 #endif
 
+#include "../../../Message/header/message.h"
+
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -22,9 +25,13 @@ class Server {
         struct sockaddr_in addr;
         socklen_t addr_size;
 
+        pthread_t thread_id;
+
         void openListener();
 
-        void serverProcess();
+        void connectionManager();
+
+        static void *sessionHandler(void* client);
 
     public:
         Server(int portnum);

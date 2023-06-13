@@ -2,6 +2,8 @@
 #define CLIENT_H
 #endif
 
+#include "../../../Message/header/message.h"
+
 #include <sys/socket.h>
 #include <sys/types.h>
 
@@ -25,7 +27,7 @@ class Client {
         void clientProcess();
         void openConnection();
 
-        void sendMessage(const char *message);
+        void sendMessage(const char *message, std::size_t msg_size);
 
     public:
         Client(const char *hostname, int port);

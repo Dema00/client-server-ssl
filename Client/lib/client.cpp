@@ -3,7 +3,8 @@
 
 void Client::openConnection() {
     if ( connect(this->sd, (struct sockaddr*)&this->addr, sizeof(this->addr)) != 0 )
-	{
+	{   
+        std::cerr << "FAILED TO CONNECT" << "\n Is the server running?";
 		close(this->sd);
 		abort();
 	}
@@ -26,9 +27,25 @@ void Client::startClient() {
     //assolutamente inutile
     std::string welcomeFile = "lib/ascii_art.txt";
 	std::cout<<ReadFile(welcomeFile)<< std::endl;
+
+    this->clientProcess();
     
 }
 
 void Client::stopClient() {
     close(this->sd);
+}
+
+void Client::sendMessage(const char* message, std::size_t msg_size) {
+    Message to_send = Message(msg_size);
+    to_send.addContents(message);
+    to_send.sendMessage(this->sd);
+}
+
+void Client::clientProcess() {
+    while(1) {
+        char msg [1024];
+        GetInput(msg);
+        this->sendMessage(msg, 1024);
+    }
 }

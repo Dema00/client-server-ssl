@@ -11,3 +11,12 @@ std::string ReadFile(const std::string &filename) {
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     return content;
 }
+
+const char* GetInput(char* buf) {
+	std::string inputLine = "0";
+
+	if (!std::getline(std::cin, inputLine)) {
+		std::cerr << "Error reading input from keyboard.. " << std::endl;
+	}
+	strcpy(buf, inputLine.c_str());
+}

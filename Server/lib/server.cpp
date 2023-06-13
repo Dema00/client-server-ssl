@@ -15,14 +15,31 @@ void Server::openListener(){
     }
 };
 
-void Server::serverProcess() {
-    while(1) {
+void Server::connectionManager() {
+    while(true) {
         if (listen(this->sd, 5) != 0) {
             std::cerr << "ERROR WHILE LISTENING ON " << this->sd;;
         };
+
         int client = accept(this->sd, (struct sockaddr*)&this->addr, &this->addr_size);
         printf("Connection: %s:%d\n",inet_ntoa(this->addr.sin_addr), ntohs(this->addr.sin_port));
 
+        if (pthread_create(&this->thread_id, NULL, this->sessionHandler, (void*)&client)) {
+			std::cout << "Error starting connection handler thread... did you compile with the right flag?" << std::endl;
+			close(client);
+		}else {
+			pthread_detach(this->thread_id);
+		}
+
+    }
+};
+
+void *Server::sessionHandler(void *client) {
+    int sd = *((int*)client);
+    while (1) {
+        Message* received = new Message(1024,sd);
+        std::cout << "<" << sd  << "> " << received->getContents() << std::endl;
+        delete received;
     }
 };
 
@@ -34,7 +51,7 @@ void Server::startServer() {
     std::string welcomeFile = "lib/ascii_art.txt";
 	std::cout<<ReadFile(welcomeFile)<< std::endl;
 
-    this->serverProcess();
+    this->connectionManager();
 };
 
 void Server::stopServer() {
