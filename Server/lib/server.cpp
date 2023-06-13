@@ -24,24 +24,19 @@ void Server::connectionManager() {
         int client = accept(this->sd, (struct sockaddr*)&this->addr, &this->addr_size);
         printf("Connection: %s:%d\n",inet_ntoa(this->addr.sin_addr), ntohs(this->addr.sin_port));
 
-        if (pthread_create(&this->thread_id, NULL, this->sessionHandler, (void*)&client)) {
-			std::cout << "Error starting session handler thread... did you compile with the right flag?" << std::endl;
-			close(client);
-		}else {
-			pthread_detach(this->thread_id);
-		}
-
+        this->threads[client] = std::thread(&Server::sessionHandler, this, client);
+        this->threads[client].join();
+        this->threads.erase(client);
     }
 };
 
-void *Server::sessionHandler(void *client) {
-    int sd = *((int*)client);
+void Server::sessionHandler(int client) {
     while (1) {
-        Message* received = new Message(1024,sd);
+        Message* received = new Message(1024,client);
         if (received->getStatus() != OK) {
             break;
         }
-        std::cout << "<" << sd  << "> " << received->getContents() << std::endl;
+        std::cout << "<" << client << "> " << received->getContents() << std::endl;
         delete received;
     }
 };
@@ -63,7 +58,7 @@ void Server::stopServer() {
     };
 }
 
-Server::Server(int portnum) {
+Server::Server(int portnum, const char* db_path) {
     this->sd = socket(AF_INET, SOCK_STREAM, 0);
     this->addr = {
         AF_INET, // sin_family
@@ -71,5 +66,8 @@ Server::Server(int portnum) {
         {INADDR_ANY} //sin_addr.addr
     };
     this->addr_size = sizeof(this->addr);
+
+    sqlite3_open_v2(db_path,&this->db,SQLITE_OPEN_READWRITE,NULL);
+    
     std::cout<< "New server created on port: " << portnum <<std::endl;
 };

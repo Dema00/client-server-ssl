@@ -17,7 +17,7 @@ int main(int count, char *strings[])
 		exit(1);
 	}
 
-    Server server = Server(portnum);
+    Server server = Server(portnum, "bank.db");
 
     server.startServer();
 

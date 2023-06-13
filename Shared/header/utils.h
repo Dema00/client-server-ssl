@@ -6,6 +6,8 @@
 #include <iostream>
 #include <fstream>
 
+#include <sqlite3.h>
+
 std::string ReadFile(const std::string &filename) {
     std::ifstream file(filename);
     std::string content((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());

@@ -4,9 +4,13 @@
 
 #include "../../../Message/header/message.h"
 
+#include <sqlite3.h>
+
+#include <map>
+#include <thread>
+
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <pthread.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -21,20 +25,25 @@
 
 class Server {
     private:
+        // socket management
         int sd;
         struct sockaddr_in addr;
         socklen_t addr_size;
 
-        pthread_t thread_id;
+        // thread management
+        std::map<int,std::thread> threads;
+
+        // db management
+        sqlite3* db;
 
         void openListener();
 
         void connectionManager();
 
-        static void *sessionHandler(void* client);
+        void sessionHandler(int client);
 
     public:
-        Server(int portnum);
+        Server(int portnum, const char* db_path);
 
         void startServer();
         void stopServer();
