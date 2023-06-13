@@ -6,8 +6,10 @@
 
 #include <sqlite3.h>
 
-#include <map>
+#include <vector>
 #include <thread>
+#include <algorithm>
+#include <map>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -31,10 +33,13 @@ class Server {
         socklen_t addr_size;
 
         // thread management
-        std::map<int,std::thread> threads;
+        std::vector<std::thread> threads;
 
         // db management
         sqlite3* db;
+        
+        // user management
+        std::map<std::string,int> connected_users;
 
         void openListener();
 

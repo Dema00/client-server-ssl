@@ -14,7 +14,7 @@ std::string ReadFile(const std::string &filename) {
     return content;
 }
 
-const char* GetInput(char* buf) {
+void GetInput(char* buf) {
 	std::string inputLine = "0";
 
 	if (!std::getline(std::cin, inputLine)) {
