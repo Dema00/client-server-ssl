@@ -29,7 +29,7 @@ void Server::startServer() {
     std::string welcomeFile = "lib/ascii_art.txt";
 	std::cout<<ReadFile(welcomeFile)<< std::endl;
 
-    this->connectionManager();
+    this->serverControlPanel();
 };
 
 void Server::stopServer() {
@@ -58,18 +58,31 @@ void Server::openListener(){
 };
 
 void Server::serverControlPanel() {
+    std::thread manager(&Server::connectionManager, this);
     while(this->status == RUN) {
-        char msg [256];
+        char msg [100];
         GetInput(msg);
         if (strcmp(msg, "quit") == 0) {
             this->status = TERMINATE;
+            manager.detach();
+            manager.~thread();
         }
     }
 }
 
+void Server::broadcast(const char* message, const char* username) {
+    for (auto & user : this->connected_users) {
+            Message* broadcast = new Message(100);
+            broadcast->addContents(username);
+            broadcast->addContents(" : ");
+            broadcast->addContents(message);
+            broadcast->sendMessage(user.second);
+            delete broadcast;
+        }
+}  
+
 void Server::connectionManager() {
-    threads.push_back(std::thread(&Server::serverControlPanel, this));
-    while(this->status == RUN) {
+    while(1) {
         if (listen(this->sd, 5) != 0) {
             std::cerr << "ERROR WHILE LISTENING ON " << this->sd;;
         };
@@ -82,28 +95,36 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
-    char psw[256];
-    Message* username = new Message(256,client);
+    char psw[100];
+    Message* username = new Message(100,client);
     get_user_psw(this->db, username->getContents(), psw);
-    Message* user_psw = new Message(256,client);
+    Message* user_psw = new Message(100,client);
     bool logged = strncmp(psw,user_psw->getContents(),strlen(psw)) == 0;
 
-    if (logged && (connected_users.count(username->getContents()) == 0)) {
-        connected_users[username->getContents()] = client;
+    std::cout << this->connected_users.count(username->getContents()) << std::endl;
+
+    if ( this->connected_users.count(username->getContents()) == 0) {
+        this->connected_users[username->getContents()] = client;
+        std::cout << ">>user " << username->getContents() << " logged in!" << std::endl;
     } else
     {
+        std::cout << ">>user " << username->getContents() << " is already logged in!" << std::endl;
         logged = false;
+        Message bye(100);
+        bye.addContents("user is already logged in");
+        bye.sendMessage(client);
+        close(client);
     }
-    std::cout << logged << "psw: " << psw << " user " << user_psw->getContents() << std::endl;
     while (logged) {
-        Message* received = new Message(1024,client);
+        Message* received = new Message(100,client);
         if (received->getStatus() != OK) {
             std::cerr << "client " << username->getContents() << " has disconnected" << std::endl;
-            connected_users.erase(username->getContents());
+            this->connected_users.erase(username->getContents());
+            close(client);
             break;
         }
+        this->broadcast(received->getContents(), username->getContents());
         std::cout << "<" << username->getContents() << "> " << received->getContents() << std::endl;
-
 
         delete received;
     }

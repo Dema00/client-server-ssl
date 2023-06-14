@@ -45,7 +45,7 @@ class Server {
         sqlite3* db;
         
         // user management
-        std::map<const char*,int> connected_users;
+        std::map<std::string,int> connected_users;
 
         // server management
         serverStatus status;
@@ -55,6 +55,8 @@ class Server {
         void serverControlPanel();
 
         void connectionManager();
+
+        void broadcast(const char* message, const char* username);
 
         void sessionHandler(int client);
 

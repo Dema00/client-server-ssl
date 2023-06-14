@@ -28,6 +28,7 @@ void Client::startClient() {
     std::string welcomeFile = "lib/ascii_art.txt";
 	std::cout<<ReadFile(welcomeFile)<< std::endl;
 
+    
     this->clientProcess();
     
 }
@@ -42,10 +43,24 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
     to_send.sendMessage(this->sd);
 }
 
-void Client::clientProcess() {
+void Client::messagePrinter() {
     while(1) {
-        char msg [1024];
-        GetInput(msg);
-        this->sendMessage(msg, 1024);
+        Message *received = new Message(100,this->sd);
+        if( received->getStatus() != OK) {
+            close(this->sd);
+            break;
+        }
+        std::cout << received->getContents() << std::endl;
+        delete received;
     }
+}
+
+void Client::clientProcess() {
+    std::thread printer(&Client::messagePrinter, this);
+    while(1) {
+        char msg [100];
+        GetInput(msg);
+        this->sendMessage(msg, 100);
+    }
+    printer.join();
 }

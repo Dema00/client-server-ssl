@@ -15,6 +15,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <thread>
 
 class Client {
     private:
@@ -28,6 +29,8 @@ class Client {
         void openConnection();
 
         void sendMessage(const char *message, std::size_t msg_size);
+        
+        void messagePrinter();
 
     public:
         Client(const char *hostname, int port);
