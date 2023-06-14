@@ -82,10 +82,19 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
+    char psw[256];
     Message* username = new Message(256,client);
-    const char* psw = get_user_psw(this->db, username->getContents());
+    get_user_psw(this->db, username->getContents(), psw);
     Message* user_psw = new Message(256,client);
-    bool logged = strncmp(psw,user_psw->getContents(), strlen(psw));
+    bool logged = strncmp(psw,user_psw->getContents(),strlen(psw)) == 0;
+
+    if (logged && (connected_users.count(username->getContents()) == 0)) {
+        connected_users[username->getContents()] = client;
+    } else
+    {
+        logged = false;
+    }
+    std::cout << logged << "psw: " << psw << " user " << user_psw->getContents() << std::endl;
     while (logged) {
         Message* received = new Message(1024,client);
         if (received->getStatus() != OK) {
@@ -94,6 +103,8 @@ void Server::sessionHandler(int client) {
             break;
         }
         std::cout << "<" << username->getContents() << "> " << received->getContents() << std::endl;
+
+
         delete received;
     }
     return;

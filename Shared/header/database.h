@@ -4,6 +4,7 @@
 
 #include <sqlite3.h>
 #include <string.h>
+#include <string>
 #include <iostream>
 
-const char* get_user_psw(sqlite3* db, const char* username);
+void get_user_psw(sqlite3* db, const char* username, char* out);
