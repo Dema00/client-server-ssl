@@ -3,6 +3,7 @@
 #endif
 
 #include "../../../Message/header/message.h"
+#include "../../../Shared/header/database.h"
 
 #include <sqlite3.h>
 
@@ -23,6 +24,11 @@
 #include <iostream>
 #include <fstream>
 
+enum serverStatus{
+    RUN,
+    TERMINATE,
+};
+
 
 
 class Server {
@@ -39,9 +45,14 @@ class Server {
         sqlite3* db;
         
         // user management
-        std::map<std::string,int> connected_users;
+        std::map<const char*,int> connected_users;
+
+        // server management
+        serverStatus status;
 
         void openListener();
+
+        void serverControlPanel();
 
         void connectionManager();
 

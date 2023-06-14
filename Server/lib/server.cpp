@@ -10,9 +10,15 @@ Server::Server(int portnum, const char* db_path): threads() {
     };
     this->addr_size = sizeof(this->addr);
 
-    sqlite3_open_v2(db_path,&this->db,SQLITE_OPEN_READWRITE,NULL);
+    if (sqlite3_open_v2(db_path,&this->db,SQLITE_OPEN_READWRITE,NULL) != SQLITE_OK) {
+        std::cerr<<"ERROR WHILE OPENING DATABASE";
+        close(this->sd);
+        abort();
+    }
+
+    this->status = RUN;
     
-    std::cout<< "New server created on port: " << portnum <<std::endl;
+    std::cout<< "New server created with address: localhost:" << portnum <<std::endl;
 };
 
 void Server::startServer() {
@@ -44,15 +50,26 @@ void Server::openListener(){
         abort();
     }
 
-    if( listen(sd, 10) != 0) {
+    if( listen(this->sd, 10) != 0) {
         std::cerr<<"LISTENING CONFIG ERROR";
-        close(sd);
+        close(this->sd);
         abort();
     }
 };
 
+void Server::serverControlPanel() {
+    while(this->status == RUN) {
+        char msg [256];
+        GetInput(msg);
+        if (strcmp(msg, "quit") == 0) {
+            this->status = TERMINATE;
+        }
+    }
+}
+
 void Server::connectionManager() {
-    while(true) {
+    threads.push_back(std::thread(&Server::serverControlPanel, this));
+    while(this->status == RUN) {
         if (listen(this->sd, 5) != 0) {
             std::cerr << "ERROR WHILE LISTENING ON " << this->sd;;
         };
@@ -65,12 +82,18 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
-    while (1) {
+    Message* username = new Message(256,client);
+    const char* psw = get_user_psw(this->db, username->getContents());
+    Message* user_psw = new Message(256,client);
+    bool logged = strncmp(psw,user_psw->getContents(), strlen(psw));
+    while (logged) {
         Message* received = new Message(1024,client);
         if (received->getStatus() != OK) {
+            std::cerr << "client " << username->getContents() << " has disconnected" << std::endl;
+            connected_users.erase(username->getContents());
             break;
         }
-        std::cout << "<" << client << "> " << received->getContents() << std::endl;
+        std::cout << "<" << username->getContents() << "> " << received->getContents() << std::endl;
         delete received;
     }
     return;
