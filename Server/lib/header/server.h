@@ -56,7 +56,8 @@ class Server {
 
         void connectionManager();
 
-        void broadcast(const char* message, const char* username);
+        void broadcast(Message* message);
+        void broadcast(Message* message, std::string sender);
 
         void sessionHandler(int client);
 

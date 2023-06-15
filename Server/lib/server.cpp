@@ -35,7 +35,8 @@ void Server::startServer() {
 void Server::stopServer() {
 
     for (auto & thread : this->threads) {
-        thread.join();
+        thread.detach();
+        thread.~thread();
     }
 
     if (close(this->sd) != 0) {
@@ -70,14 +71,16 @@ void Server::serverControlPanel() {
     }
 }
 
-void Server::broadcast(const char* message, const char* username) {
+void Server::broadcast(Message* message) {
     for (auto & user : this->connected_users) {
-            Message* broadcast = new Message(100);
-            broadcast->addContents(username);
-            broadcast->addContents(" : ");
-            broadcast->addContents(message);
-            broadcast->sendMessage(user.second);
-            delete broadcast;
+            message->sendMessage(user.second);
+        }
+}  
+void Server::broadcast(Message* message, std::string sender) {
+    for (auto & user : this->connected_users) {
+            if (user.first != sender) {
+                message->sendMessage(user.second);
+            }
         }
 }  
 
@@ -121,10 +124,13 @@ void Server::sessionHandler(int client) {
             std::cerr << "client " << username->getContents() << " has disconnected" << std::endl;
             this->connected_users.erase(username->getContents());
             close(client);
+            delete received;
             break;
         }
-        this->broadcast(received->getContents(), username->getContents());
-        std::cout << "<" << username->getContents() << "> " << received->getContents() << std::endl;
+        received->addContentsBeginning(" : ");
+        received->addContentsBeginning(username->getContents());
+        this->broadcast(received, username->getContents());
+        std::cout << "<" << client << ">" << received->getContents() << std::endl;
 
         delete received;
     }

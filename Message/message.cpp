@@ -6,12 +6,14 @@
 
 Message::Message(std::size_t buf_size) {
     this->contents = new char[buf_size];
+    this->msg_size = buf_size;
     this->status = OK;
     memset(this->contents, 0, buf_size);
 };
 
 Message::Message(std::size_t buf_size, int sd) {
     this->contents = new char[buf_size];
+    this->msg_size = buf_size;
     this->status = OK;
     memset(this->contents, 0, buf_size);
 
@@ -29,6 +31,13 @@ Message::Message(std::size_t buf_size, int sd) {
 void Message::addContents(const char* new_contents) {
     strcat(this->contents, new_contents);
 };
+
+void Message::addContentsBeginning(const char* new_contents) {
+    char temp[this->msg_size];
+    strcpy(temp,this->contents);
+    strcpy(this->contents, new_contents);
+    strcat(this->contents, temp);
+}
 
 const char* Message::getContents() const {
     return this->contents;
@@ -60,6 +69,9 @@ MessageDecorator::MessageDecorator(Message *message) {
 void MessageDecorator::addContents(const char* new_contents) {
     this->wrapped_message->addContents(new_contents);
 };
+void MessageDecorator::addContentsBeginning(const char* new_contents){
+    this->wrapped_message->addContentsBeginning(new_contents);
+}
 const char* MessageDecorator::getContents() const {
     return this->wrapped_message->getContents();
 };
