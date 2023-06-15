@@ -61,7 +61,7 @@ void Server::openListener(){
 void Server::serverControlPanel() {
     std::thread manager(&Server::connectionManager, this);
     while(this->status == RUN) {
-        char msg [100];
+        char msg [1024];
         GetInput(msg);
         if (strcmp(msg, "quit") == 0) {
             this->status = TERMINATE;
@@ -98,38 +98,44 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
-    char psw[100];
-    Message* username = new Message(100,client);
-    get_user_psw(this->db, username->getContents(), psw);
-    Message* user_psw = new Message(100,client);
-    bool logged = strncmp(psw,user_psw->getContents(),strlen(psw)) == 0;
+    char psw[1024];
+    Message* un_msg = new Message(1024,client);
+    std::cout << (const char*)un_msg->getContents() << std::endl;
+    std::string username((const char*)un_msg->getContents());
+    std::cout << username << std::endl;
+    delete un_msg;
 
-    std::cout << this->connected_users.count(username->getContents()) << std::endl;
+    get_user_psw(this->db, username, psw);
 
-    if ( this->connected_users.count(username->getContents()) == 0) {
-        this->connected_users[username->getContents()] = client;
-        std::cout << ">>user " << username->getContents() << " logged in!" << std::endl;
+    Message* up_msg = new Message(1024,client);
+    std::string user_pass((const char*)up_msg->getContents());
+    bool logged = strncmp(psw,user_pass.c_str(),strlen(psw)) == 0;
+
+    if ( this->connected_users.count(username) == 0) {
+        this->connected_users[username] = client;
+        std::cout << ">>user " << username << " logged in!" << std::endl;
     } else
     {
-        std::cout << ">>user " << username->getContents() << " is already logged in!" << std::endl;
+        std::cout << ">>user " << username << " is already logged in!" << std::endl;
         logged = false;
-        Message bye(100);
-        bye.addContents("user is already logged in");
+        Message bye(1024);
+        bye.addContents((const unsigned char *)"user is already logged in");
         bye.sendMessage(client);
         close(client);
     }
     while (logged) {
-        Message* received = new Message(100,client);
+        Message* received = new Message(1024,client);
         if (received->getStatus() != OK) {
-            std::cerr << "client " << username->getContents() << " has disconnected" << std::endl;
-            this->connected_users.erase(username->getContents());
+            std::cerr << "client " << username << " has disconnected" << std::endl;
+            this->connected_users.erase(username);
             close(client);
             delete received;
             break;
         }
-        received->addContentsBeginning(" : ");
-        received->addContentsBeginning(username->getContents());
-        this->broadcast(received, username->getContents());
+        received->addContentsBeginning((const unsigned char *)" : ");
+        received->addContentsBeginning((const unsigned char *)username.c_str());
+        std::cout << received->getContents() << std::endl;
+        this->broadcast(received, username);
         std::cout << "<" << client << ">" << received->getContents() << std::endl;
 
         delete received;

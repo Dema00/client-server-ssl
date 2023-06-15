@@ -39,7 +39,7 @@ void Client::stopClient() {
 
 void Client::sendMessage(const char* message, std::size_t msg_size) {
     Message to_send = Message(msg_size);
-    to_send.addContents(message);
+    to_send.addContents((const unsigned char*)message);
     to_send.sendMessage(this->sd);
 }
 
@@ -60,7 +60,7 @@ void Client::clientProcess() {
     while(1) {
         char msg [100];
         GetInput(msg);
-        this->sendMessage(msg, 100);
+        this->sendMessage(msg, 1024);
     }
     printer.join();
 }

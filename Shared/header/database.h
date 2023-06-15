@@ -7,4 +7,4 @@
 #include <string>
 #include <iostream>
 
-void get_user_psw(sqlite3* db, const char* username, char* out);
+void get_user_psw(sqlite3* db, std::string username, char* out);
