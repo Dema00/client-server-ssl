@@ -99,16 +99,17 @@ void Server::connectionManager() {
 
 void Server::sessionHandler(int client) {
     char psw[1024];
-    Message* un_msg = new Message(1024,client);
-    std::cout << (const char*)un_msg->getContents() << std::endl;
+    MessageInterface* un_msg = new Message(1024);
+    un_msg->receiveMessage(client);
     std::string username((const char*)un_msg->getContents());
-    std::cout << username << std::endl;
     delete un_msg;
 
     get_user_psw(this->db, username, psw);
 
-    Message* up_msg = new Message(1024,client);
+    Message* up_msg = new Message(1024);
+    up_msg->receiveMessage(client);
     std::string user_pass((const char*)up_msg->getContents());
+    delete up_msg;
     bool logged = strncmp(psw,user_pass.c_str(),strlen(psw)) == 0;
 
     if ( this->connected_users.count(username) == 0) {
@@ -124,7 +125,8 @@ void Server::sessionHandler(int client) {
         close(client);
     }
     while (logged) {
-        Message* received = new Message(1024,client);
+        Message* received = new Message(1024);
+        received->receiveMessage(client);
         if (received->getStatus() != OK) {
             std::cerr << "client " << username << " has disconnected" << std::endl;
             this->connected_users.erase(username);
@@ -134,7 +136,6 @@ void Server::sessionHandler(int client) {
         }
         received->addContentsBeginning((const unsigned char *)" : ");
         received->addContentsBeginning((const unsigned char *)username.c_str());
-        std::cout << received->getContents() << std::endl;
         this->broadcast(received, username);
         std::cout << "<" << client << ">" << received->getContents() << std::endl;
 

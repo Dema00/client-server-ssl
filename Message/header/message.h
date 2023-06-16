@@ -2,9 +2,12 @@
 #define MESSAGE_H
 #endif
 
+#include "../../Shared/header/security.h"
+
 #include <stdlib.h>
 
 #include <string.h>
+#include <vector>
 #include <iostream>
 
 #include <sys/socket.h>
@@ -18,16 +21,22 @@
 
 enum integrity {
     OK,
-    BROKEN
+    BROKEN,
 };
+
+typedef std::vector<unsigned char> buffer;
 
 
 class MessageInterface {
     public:
         virtual void addContents(const unsigned char* new_contents) = 0;
         virtual void addContentsBeginning(const unsigned char* new_contents) = 0;
+
         virtual const unsigned char* getContents() const = 0;
+        virtual unsigned char* getContentsMut() = 0;
+
         virtual void sendMessage(int sd) const = 0;
+        virtual void receiveMessage(int sd) = 0;
 
         virtual size_t getMsgSize() const = 0;
         virtual integrity getStatus() const = 0;
@@ -37,22 +46,27 @@ class MessageInterface {
 
 class Message: public MessageInterface {
     protected:
-        unsigned char* contents;
-        size_t msg_size;
+        buffer contents;
+        size_t reserved_space;
         integrity status;
     public:
         Message(std::size_t buf_size);
-        Message(std::size_t buf_size, int sd);
+
         void addContents(const unsigned char* new_contents) override;
         void addContentsBeginning(const unsigned char* new_contents) override;
+
         const unsigned char* getContents() const override;
+        unsigned char* getContentsMut() override;
+
         void sendMessage(int sd) const override;
+        void receiveMessage(int sd) override;
 
         size_t getMsgSize() const override;
         integrity getStatus() const override;
 
         ~Message() {
-            delete[] contents;
+            memset(contents.data(),0,contents.size());
+            contents.clear();
         };
 };
 
@@ -63,9 +77,14 @@ class MessageDecorator: public MessageInterface {
     public:
         MessageDecorator(MessageInterface *message);
         void addContents(const unsigned char* new_contents) override;
+
         void addContentsBeginning(const unsigned char* new_contents) override;
         const unsigned char* getContents() const override;
+
+        unsigned char* getContentsMut() override;
+
         void sendMessage(int sd) const override;
+        void receiveMessage(int sd) override;
 
         size_t getMsgSize() const override;
         integrity getStatus() const override;
@@ -77,8 +96,10 @@ class MessageDecorator: public MessageInterface {
 
 class AddAES256: public MessageDecorator {
     protected:
-        unsigned const char* key;
+        unsigned char* key;
     public:
-        AddAES256(MessageInterface* message, unsigned const char* key);
+        AddAES256(MessageInterface* message, unsigned char* key);
+        void decryptMessage();
         void sendMessage(int sd) const override;
+        void receiveMessage(int sd) override;
 };

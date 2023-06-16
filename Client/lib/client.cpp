@@ -38,14 +38,16 @@ void Client::stopClient() {
 }
 
 void Client::sendMessage(const char* message, std::size_t msg_size) {
-    Message to_send = Message(msg_size);
-    to_send.addContents((const unsigned char*)message);
-    to_send.sendMessage(this->sd);
+    MessageInterface* to_send = new Message(msg_size);
+    to_send->addContents((const unsigned char*)message);
+    to_send->sendMessage(this->sd);
+    delete to_send;
 }
 
 void Client::messagePrinter() {
     while(1) {
-        Message *received = new Message(100,this->sd);
+        Message *received = new Message(1024);
+        received->receiveMessage(this->sd);
         if( received->getStatus() != OK) {
             close(this->sd);
             break;
@@ -58,7 +60,7 @@ void Client::messagePrinter() {
 void Client::clientProcess() {
     std::thread printer(&Client::messagePrinter, this);
     while(1) {
-        char msg [100];
+        char msg [1024];
         GetInput(msg);
         this->sendMessage(msg, 1024);
     }
