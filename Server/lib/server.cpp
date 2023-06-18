@@ -131,7 +131,7 @@ void Server::sessionHandler(int client) {
         std::cout << ">>user " << username << " is already logged in!" << std::endl;
         logged = false;
         Message bye(1024);
-        bye.addContents((const unsigned char *)"user is already logged in");
+        bye.addContents((const unsigned char *)"user is already logged in",26);
         bye.sendMessage(client);
         close(client);
     }
@@ -145,11 +145,11 @@ void Server::sessionHandler(int client) {
             delete received;
             break;
         }
+        received->addContentsBeginning((const unsigned char *)" : ",3);
+        received->addContentsBeginning((const unsigned char *)username.c_str(),username.size());
         BIO_dump_fp (stdout, (const char *)received->getContents(), received->getContentsSize());
-        received->addContentsBeginning((const unsigned char *)" : ");
-        received->addContentsBeginning((const unsigned char *)username.c_str());
         this->broadcast(received, username);
-        std::cout << "<" << client << ">" << received->getContents() << std::endl;
+        std::cout << "<" << client << ">" << (const char *)received->getContents() << std::endl;
 
         delete received;
     }

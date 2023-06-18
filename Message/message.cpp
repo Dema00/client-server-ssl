@@ -9,15 +9,13 @@ Message::Message(std::size_t buf_size): contents(buf_size), reserved_space(buf_s
     contents.reserve(reserved_space);
 };
 
-void Message::addContents(const unsigned char* new_contents) {
-    buffer::size_type size = strlen((const char*)new_contents);
-    contents.insert(contents.end(), new_contents, new_contents+size);
+void Message::addContents(const unsigned char* new_contents, int len) {
+    contents.insert(contents.end(), new_contents, new_contents+len);
 
 };
 
-void Message::addContentsBeginning(const unsigned char* new_contents) {
-    buffer::size_type size = strlen((const char*)new_contents);
-    contents.insert(contents.begin(), new_contents, new_contents+size);
+void Message::addContentsBeginning(const unsigned char* new_contents, int len) {
+    contents.insert(contents.begin(), new_contents, new_contents+len);
 }
 
 void Message::clearContents() {
@@ -50,9 +48,9 @@ void Message::sendMessage(int sd) const {
     }
 }
 
-void Message::sendMessage(int sd, const unsigned char* contents) const {
+void Message::sendMessage(int sd, const unsigned char* contents, int len) const {
 
-    if ( send(sd, contents, strlen((const char*)contents), 0) == -1) {
+    if ( send(sd, contents, len, 0) == -1) {
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
         printf("ERROR WHILE SENDING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
@@ -65,7 +63,7 @@ void Message::receiveMessage(int sd) {
     unsigned char recvbuf[reserved_space];
     memset(recvbuf,0,reserved_space);
     int result = recv(sd,(void*)recvbuf,reserved_space,0);
-    addContents(recvbuf);
+    addContents(recvbuf, this->reserved_space);
     if ( result == -1 ) {
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
@@ -93,11 +91,11 @@ buffer* Message::getBuffer() {
 MessageDecorator::MessageDecorator(MessageInterface *message): wrapped_message(message) {}
 
 
-void MessageDecorator::addContents(const unsigned char* new_contents) {
-    this->wrapped_message->addContents(new_contents);
+void MessageDecorator::addContents(const unsigned char* new_contents, int len) {
+    this->wrapped_message->addContents(new_contents, len);
 };
-void MessageDecorator::addContentsBeginning(const unsigned char* new_contents){
-    this->wrapped_message->addContentsBeginning(new_contents);
+void MessageDecorator::addContentsBeginning(const unsigned char* new_contents, int len){
+    this->wrapped_message->addContentsBeginning(new_contents, len);
 }
 void MessageDecorator::clearContents() {
     this->wrapped_message->clearContents();
@@ -113,8 +111,8 @@ unsigned char* MessageDecorator::getContentsMut() {
 void MessageDecorator::sendMessage(int sd) const {
     this->wrapped_message->sendMessage(sd);
 };
-void MessageDecorator::sendMessage(int sd, const unsigned char* contents) const {
-    this->wrapped_message->sendMessage(sd, contents);
+void MessageDecorator::sendMessage(int sd, const unsigned char* contents, int len) const {
+    this->wrapped_message->sendMessage(sd, contents, len);
 }
 void MessageDecorator::receiveMessage(int sd) {
     this->wrapped_message->receiveMessage(sd);
@@ -148,11 +146,11 @@ void AddAES256::sendMessage(int sd) const {
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
     //std::cout<<"msg out plain: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
-    encrypt(wrapped_message->getContentsMut(), getContentsSize()+1, this->key, this->iv, ciphertext);
+    int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved()-16, this->key, this->iv, ciphertext);
     //std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
-    this->wrapped_message->sendMessage(sd,ciphertext);
-    std::cout << "sent size " << strlen((char *)ciphertext) << std::endl;
-    std::cout << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) << std::endl;
+    this->wrapped_message->sendMessage(sd,ciphertext, len);
+    std::cout << "sent size " << len << std::endl;
+    std::cout << BIO_dump_fp (stdout, (const char *)ciphertext, len) << std::endl;
 }
 
 void AddAES256::receiveMessage(int sd) {
@@ -172,10 +170,11 @@ void AddAES256::decryptMessage() {
     size_t plaintext_len = this->getContentsSize();
     std::cout << "cipher len: " << plaintext_len << std::endl;
 
-    decrypt(getContentsMut(), plaintext_len, this->key, this->iv, plaintext);
+    int len = decrypt(getContentsMut(), plaintext_len, this->key, this->iv, plaintext);
+    std::cout << "ziocan" << std::endl;
     this->wrapped_message->clearContents();
-    this->wrapped_message->addContents(plaintext);
-    this->wrapped_message->getBuffer()->resize(getContentsSize());
-    memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
+    this->wrapped_message->addContents(plaintext, len);
+    this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
+    //memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
     std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
 }

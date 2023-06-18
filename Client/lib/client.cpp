@@ -50,7 +50,7 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
                         };
 
     MessageInterface* to_send = new AddAES256( new Message(msg_size), key, iv);
-    to_send->addContents((const unsigned char*)message);
+    to_send->addContents((const unsigned char*)message, strlen(message));
     to_send->sendMessage(this->sd);
     delete to_send;
 }

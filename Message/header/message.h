@@ -33,15 +33,15 @@ typedef std::vector<unsigned char> buffer;
 
 class MessageInterface {
     public:
-        virtual void addContents(const unsigned char* new_contents) = 0;
-        virtual void addContentsBeginning(const unsigned char* new_contents) = 0;
+        virtual void addContents(const unsigned char* new_contents, int len) = 0;
+        virtual void addContentsBeginning(const unsigned char* new_contents, int len) = 0;
         virtual void clearContents() = 0;
 
         virtual const unsigned char* getContents() const = 0;
         virtual unsigned char* getContentsMut() = 0;
 
         virtual void sendMessage(int sd) const = 0;
-        virtual void sendMessage(int sd, const unsigned char* contents) const = 0;
+        virtual void sendMessage(int sd, const unsigned char* contents, int len) const = 0;
         virtual void receiveMessage(int sd) = 0;
 
         virtual size_t getContentsSize() const = 0;
@@ -61,15 +61,15 @@ class Message: public MessageInterface {
     public:
         Message(std::size_t buf_size);
 
-        void addContents(const unsigned char* new_contents) override;
-        void addContentsBeginning(const unsigned char* new_contents) override;
+        void addContents(const unsigned char* new_contents, int len) override;
+        void addContentsBeginning(const unsigned char* new_contents, int len) override;
         void clearContents() override;
 
         const unsigned char* getContents() const override;
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
-        virtual void sendMessage(int sd, const unsigned char* contents) const override;
+        virtual void sendMessage(int sd, const unsigned char* contents, int len) const override;
         void receiveMessage(int sd) override;
 
         size_t getContentsSize() const override;
@@ -91,15 +91,15 @@ class MessageDecorator: public MessageInterface {
     public:
         MessageDecorator(MessageInterface *message);
         
-        void addContents(const unsigned char* new_contents) override;
-        void addContentsBeginning(const unsigned char* new_contents) override;
+        void addContents(const unsigned char* new_contents, int len) override;
+        void addContentsBeginning(const unsigned char* new_contents, int len) override;
         void clearContents() override;
 
         const unsigned char* getContents() const override;
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
-        virtual void sendMessage(int sd, const unsigned char* contents) const override;
+        virtual void sendMessage(int sd, const unsigned char* contents, int len) const override;
         void receiveMessage(int sd) override;
 
         size_t getContentsSize() const override;
