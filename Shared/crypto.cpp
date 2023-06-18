@@ -1,4 +1,9 @@
-#include "header/security.h"
+#include "header/crypto.h"
+
+void handleErrors(){
+    ERR_print_errors_fp(stderr);
+    abort();
+}
 
 int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
             unsigned char *iv, unsigned char *ciphertext)
@@ -11,8 +16,8 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
 
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        std::cerr << "ENC ERROR";
-
+        handleErrors();
+    
     /*
      * Initialise the encryption operation. IMPORTANT - ensure you use a key
      * and IV size appropriate for your cipher
@@ -21,14 +26,14 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
      * is 128 bits
      */
     if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
-        std::cerr << "ENC ERROR";
+        handleErrors();
 
     /*
      * Provide the message to be encrypted, and obtain the encrypted output.
      * EVP_EncryptUpdate can be called multiple times if necessary
      */
     if(1 != EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
-        std::cerr << "ENC ERROR";
+        handleErrors();
     ciphertext_len = len;
 
     /*
@@ -36,7 +41,7 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
      * this stage.
      */
     if(1 != EVP_EncryptFinal_ex(ctx, ciphertext + len, &len))
-        std::cerr << "ENC ERROR";
+        handleErrors();
     ciphertext_len += len;
 
     /* Clean up */
@@ -57,7 +62,7 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
-        std::cerr << "DEC ERROR";
+        handleErrors();
 
     /*
      * Initialise the decryption operation. IMPORTANT - ensure you use a key
@@ -67,14 +72,14 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
      * is 128 bits
      */
     if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
-        std::cerr << "DEC ERROR";
+        handleErrors();
 
     /*
      * Provide the message to be decrypted, and obtain the plaintext output.
      * EVP_DecryptUpdate can be called multiple times if necessary.
      */
     if(1 != EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
-        std::cerr << "DEC ERROR";
+        handleErrors();
     plaintext_len = len;
 
     /*
@@ -82,9 +87,9 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
      * this stage.
      */
     if(1 != EVP_DecryptFinal_ex(ctx, plaintext + len, &len))
-        std::cerr << "DEC ERROR";
+        handleErrors();
     plaintext_len += len;
-
+    
     /* Clean up */
     EVP_CIPHER_CTX_free(ctx);
 

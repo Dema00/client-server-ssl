@@ -4,9 +4,9 @@
 //  %    MESSAGE    %
 //  %%%%%%%%%%%%%%%%%
 
-Message::Message(std::size_t buf_size): contents(), reserved_space(buf_size), status(OK) {
-    contents.reserve(reserved_space);
+Message::Message(std::size_t buf_size): contents(buf_size), reserved_space(buf_size), status(OK) {
     contents.clear();
+    contents.reserve(reserved_space);
 };
 
 void Message::addContents(const unsigned char* new_contents) {
@@ -20,6 +20,10 @@ void Message::addContentsBeginning(const unsigned char* new_contents) {
     contents.insert(contents.begin(), new_contents, new_contents+size);
 }
 
+void Message::clearContents() {
+    contents.clear();
+}
+
 const unsigned char* Message::getContents() const {
     return contents.data();
 };
@@ -28,15 +32,17 @@ unsigned char* Message::getContentsMut() {
     return contents.data();
 };
 
-size_t Message::getMsgSize() const {
+size_t Message::getContentsSize() const {
     return contents.size();
 }
 
-void Message::sendMessage(int sd) const {
-    unsigned char buf[reserved_space];
-    memmove(buf,getContents(),getMsgSize());
+size_t Message::getReserved() const {
+    return this->reserved_space;
+}
 
-    if ( send(sd, (void*)buf, getMsgSize(), 0) == -1) {
+void Message::sendMessage(int sd) const {
+
+    if ( send(sd, getContents(), getContentsSize(), 0) == -1) {
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
         printf("ERROR WHILE SENDING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
@@ -65,6 +71,10 @@ integrity Message::getStatus() const {
     return this->status;
 }
 
+buffer* Message::getBuffer() {
+    return &this->contents;
+}
+
 
 //  %%%%%%%%%%%%%%%%%
 //  %   DECORATOR   %
@@ -79,6 +89,10 @@ void MessageDecorator::addContents(const unsigned char* new_contents) {
 void MessageDecorator::addContentsBeginning(const unsigned char* new_contents){
     this->wrapped_message->addContentsBeginning(new_contents);
 }
+void MessageDecorator::clearContents() {
+    this->wrapped_message->clearContents();
+}
+
 const unsigned char* MessageDecorator::getContents() const {
     return this->wrapped_message->getContents();
 };
@@ -98,45 +112,60 @@ integrity MessageDecorator::getStatus() const {
     return this->wrapped_message->getStatus();
 }
 
-size_t MessageDecorator::getMsgSize() const {
-    return this->wrapped_message->getMsgSize();
+size_t MessageDecorator::getReserved() const {
+    return this->wrapped_message->getReserved();
+}
+
+size_t MessageDecorator::getContentsSize() const {
+    return this->wrapped_message->getContentsSize();
+}
+
+buffer* MessageDecorator::getBuffer() {
+    return this->wrapped_message->getBuffer();
 }
 
 //  %%%%%%%%%%%%%%%%%
 //  %    AES 256    %
 //  %%%%%%%%%%%%%%%%%
 
-AddAES256::AddAES256(MessageInterface* message, unsigned char* key): MessageDecorator(message), key{key} {
-};
+AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv)
+    : MessageDecorator(message), key{key}, iv{iv} {};
 
 void AddAES256::sendMessage(int sd) const {
-    unsigned char plaintext[wrapped_message->getMsgSize()];
-    size_t plaintext_len = strlen((char*)this->getContents());
-    std::cout << "plain len: " << plaintext_len << std::endl;
-
-    memset(plaintext, 0, wrapped_message->getMsgSize());
-    memcpy(plaintext, this->getContents(),plaintext_len);
-
-    encrypt(plaintext, plaintext_len, this->key, NULL, this->wrapped_message->getContentsMut());
+    unsigned char ciphertext[this->getReserved()];
+    memset(ciphertext, 0, getReserved());
+    //std::cout<<"msg out plain: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+    encrypt(wrapped_message->getContentsMut(), getContentsSize()+1, this->key, this->iv, ciphertext);
+    this->wrapped_message->clearContents();
+    this->wrapped_message->addContents(ciphertext);
+    //std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
     this->wrapped_message->sendMessage(sd);
+    std::cout << "sent size " << strlen((char *)ciphertext) << std::endl;
+    std::cout << "what i think the size is " << getContentsSize() << std::endl;
+    std::cout << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) << std::endl;
 }
 
 void AddAES256::receiveMessage(int sd) {
     this->wrapped_message->receiveMessage(sd);
-    std::cout<<"msg in receive: " << this->getContents() <<std::endl;
-    std::cout << "msg in len: " << sizeof((char*)this->getContents()) << std::endl;
-    this->decryptMessage();
+    if (getStatus() == OK){
+        this->decryptMessage();
+    }
 }
 
 void AddAES256::decryptMessage() {
-    std::cout<<"msg in: " << this->getContents() <<std::endl;
-    std::cout << "msg in len2: " << sizeof((char*)this->getContents()) << std::endl;
-    unsigned char ciphertext[sizeof((char*)this->getContents())];
-    size_t ciphertext_len = sizeof((char*)this->getContents());
-    std::cout << "cipher len: " << ciphertext_len << std::endl;
+    std::cout<<"msg in: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+    std::cout << "msg in len: " << this->getContentsSize() << std::endl;
+    
+    unsigned char plaintext[this->getReserved()];
+    memset(plaintext, 0, getReserved());
 
-    memset(ciphertext, 0, wrapped_message->getMsgSize());
-    memmove(ciphertext, this->getContents(),ciphertext_len);
+    size_t plaintext_len = this->getContentsSize();
+    std::cout << "cipher len: " << plaintext_len << std::endl;
 
-    decrypt(ciphertext, ciphertext_len, reinterpret_cast<unsigned char*>(this->key), NULL, this->wrapped_message->getContentsMut());
+    decrypt(getContentsMut(), plaintext_len, this->key, this->iv, plaintext);
+    this->wrapped_message->clearContents();
+    this->wrapped_message->addContents(plaintext);
+    this->wrapped_message->getBuffer()->resize(getContentsSize());
+    memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
+    std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
 }

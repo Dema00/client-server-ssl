@@ -38,15 +38,36 @@ void Client::stopClient() {
 }
 
 void Client::sendMessage(const char* message, std::size_t msg_size) {
-    MessageInterface* to_send = new Message(msg_size);
+    unsigned char key[32] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+                           0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
+                           0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31
+                         };
+
+    /* A 128 bit IV */
+    unsigned char iv[16] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                          0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
+                        };
+
+    MessageInterface* to_send = new AddAES256( new Message(msg_size), key, iv);
     to_send->addContents((const unsigned char*)message);
     to_send->sendMessage(this->sd);
     delete to_send;
 }
 
 void Client::messagePrinter() {
+    unsigned char key[32] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+                           0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
+                           0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31
+                         };
+
+    /* A 128 bit IV */
+    unsigned char iv[16] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                          0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
+                        };
     while(1) {
-        Message *received = new Message(1024);
+        MessageInterface *received = new AddAES256(new Message(128),key,iv);
         received->receiveMessage(this->sd);
         if( received->getStatus() != OK) {
             close(this->sd);
@@ -60,9 +81,9 @@ void Client::messagePrinter() {
 void Client::clientProcess() {
     std::thread printer(&Client::messagePrinter, this);
     while(1) {
-        char msg [1024];
+        char msg [128];
         GetInput(msg);
-        this->sendMessage(msg, 1024);
+        this->sendMessage(msg, 128);
     }
     printer.join();
 }

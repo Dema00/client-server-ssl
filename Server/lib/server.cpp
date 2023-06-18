@@ -61,7 +61,7 @@ void Server::openListener(){
 void Server::serverControlPanel() {
     std::thread manager(&Server::connectionManager, this);
     while(this->status == RUN) {
-        char msg [1024];
+        char msg [128];
         GetInput(msg);
         if (strcmp(msg, "quit") == 0) {
             this->status = TERMINATE;
@@ -71,12 +71,12 @@ void Server::serverControlPanel() {
     }
 }
 
-void Server::broadcast(Message* message) {
+void Server::broadcast(MessageInterface* message) {
     for (auto & user : this->connected_users) {
             message->sendMessage(user.second);
         }
 }  
-void Server::broadcast(Message* message, std::string sender) {
+void Server::broadcast(MessageInterface* message, std::string sender) {
     for (auto & user : this->connected_users) {
             if (user.first != sender) {
                 message->sendMessage(user.second);
@@ -98,15 +98,26 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
-    char psw[1024];
-    MessageInterface* un_msg = new Message(1024);
+    unsigned char key[32] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+                           0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
+                           0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31
+                         };
+
+    /* A 128 bit IV */
+    unsigned char iv[16] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
+                          0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
+                        };
+    
+    char psw[128];
+    MessageInterface* un_msg = new AddAES256( new Message(128), key, iv);
     un_msg->receiveMessage(client);
     std::string username((const char*)un_msg->getContents());
     delete un_msg;
 
     get_user_psw(this->db, username, psw);
 
-    Message* up_msg = new Message(1024);
+    MessageInterface* up_msg = new AddAES256( new Message(128), key, iv);
     up_msg->receiveMessage(client);
     std::string user_pass((const char*)up_msg->getContents());
     delete up_msg;
@@ -125,7 +136,7 @@ void Server::sessionHandler(int client) {
         close(client);
     }
     while (logged) {
-        Message* received = new Message(1024);
+        MessageInterface* received = new AddAES256( new Message(128), key, iv);
         received->receiveMessage(client);
         if (received->getStatus() != OK) {
             std::cerr << "client " << username << " has disconnected" << std::endl;
@@ -134,10 +145,12 @@ void Server::sessionHandler(int client) {
             delete received;
             break;
         }
+        BIO_dump_fp (stdout, (const char *)received->getContents(), received->getContentsSize());
         received->addContentsBeginning((const unsigned char *)" : ");
         received->addContentsBeginning((const unsigned char *)username.c_str());
+        std::string receivedmsg((const char*)received->getContents());
         this->broadcast(received, username);
-        std::cout << "<" << client << ">" << received->getContents() << std::endl;
+        std::cout << "<" << client << ">" << receivedmsg << std::endl;
 
         delete received;
     }
