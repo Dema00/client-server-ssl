@@ -41,6 +41,7 @@ class MessageInterface {
         virtual unsigned char* getContentsMut() = 0;
 
         virtual void sendMessage(int sd) const = 0;
+        virtual void sendMessage(int sd, const unsigned char* contents) const = 0;
         virtual void receiveMessage(int sd) = 0;
 
         virtual size_t getContentsSize() const = 0;
@@ -68,6 +69,7 @@ class Message: public MessageInterface {
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
+        virtual void sendMessage(int sd, const unsigned char* contents) const override;
         void receiveMessage(int sd) override;
 
         size_t getContentsSize() const override;
@@ -97,6 +99,7 @@ class MessageDecorator: public MessageInterface {
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
+        virtual void sendMessage(int sd, const unsigned char* contents) const override;
         void receiveMessage(int sd) override;
 
         size_t getContentsSize() const override;

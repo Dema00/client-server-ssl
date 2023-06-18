@@ -148,9 +148,8 @@ void Server::sessionHandler(int client) {
         BIO_dump_fp (stdout, (const char *)received->getContents(), received->getContentsSize());
         received->addContentsBeginning((const unsigned char *)" : ");
         received->addContentsBeginning((const unsigned char *)username.c_str());
-        std::string receivedmsg((const char*)received->getContents());
         this->broadcast(received, username);
-        std::cout << "<" << client << ">" << receivedmsg << std::endl;
+        std::cout << "<" << client << ">" << received->getContents() << std::endl;
 
         delete received;
     }
