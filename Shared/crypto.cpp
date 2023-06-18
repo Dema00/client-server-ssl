@@ -95,3 +95,12 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 
     return plaintext_len;
 }
+
+int hmac(const unsigned char* key, int key_len, const unsigned char* data,
+    int data_len, unsigned char* md){
+    unsigned int len;
+    HMAC(EVP_sha256(), (const void*)key, key_len,
+                    data, data_len,
+                    md, &len);
+    return len;
+}

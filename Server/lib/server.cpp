@@ -110,14 +110,14 @@ void Server::sessionHandler(int client) {
                         };
     
     char psw[128];
-    MessageInterface* un_msg = new AddAES256( new Message(128), key, iv);
+    MessageInterface* un_msg = new AddTimestamp (new AddAES256( new Message(128),key,iv));
     un_msg->receiveMessage(client);
     std::string username((const char*)un_msg->getContents());
     delete un_msg;
 
     get_user_psw(this->db, username, psw);
 
-    MessageInterface* up_msg = new AddAES256( new Message(128), key, iv);
+    MessageInterface* up_msg = new AddTimestamp (new AddAES256( new Message(128),key,iv));
     up_msg->receiveMessage(client);
     std::string user_pass((const char*)up_msg->getContents());
     delete up_msg;
@@ -136,7 +136,7 @@ void Server::sessionHandler(int client) {
         close(client);
     }
     while (logged) {
-        MessageInterface* received = new AddAES256( new Message(128), key, iv);
+        MessageInterface* received = new AddTimestamp (new AddAES256( new Message(128),key,iv));
         received->receiveMessage(client);
         if (received->getStatus() != OK) {
             std::cerr << "client " << username << " has disconnected" << std::endl;

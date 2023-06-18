@@ -49,7 +49,7 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
                         };
 
-    MessageInterface* to_send = new AddAES256( new Message(msg_size), key, iv);
+    MessageInterface* to_send = new AddTimestamp (new AddAES256( new Message(128),key,iv));
     to_send->addContents((const unsigned char*)message, strlen(message));
     to_send->sendMessage(this->sd);
     delete to_send;
@@ -67,7 +67,7 @@ void Client::messagePrinter() {
                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
                         };
     while(1) {
-        MessageInterface *received = new AddAES256(new Message(128),key,iv);
+        MessageInterface *received = new AddTimestamp (new AddAES256( new Message(128),key,iv));
         received->receiveMessage(this->sd);
         if( received->getStatus() != OK) {
             close(this->sd);

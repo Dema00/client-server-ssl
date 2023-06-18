@@ -1,12 +1,12 @@
 #include "header/message.h"
 
 //  %%%%%%%%%%%%%%%%%
-//  %    MESSAGE    %
+//  %    MESSAGE    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
-Message::Message(std::size_t buf_size): contents(buf_size), reserved_space(buf_size), status(OK) {
+Message::Message(std::size_t buf_size): contents(buf_size), status(OK) {
     contents.clear();
-    contents.reserve(reserved_space);
+    contents.reserve(buf_size);
 };
 
 void Message::addContents(const unsigned char* new_contents, int len) {
@@ -35,7 +35,7 @@ size_t Message::getContentsSize() const {
 }
 
 size_t Message::getReserved() const {
-    return this->reserved_space;
+    return contents.capacity();
 }
 
 void Message::sendMessage(int sd) const {
@@ -60,23 +60,30 @@ void Message::sendMessage(int sd, const unsigned char* contents, int len) const 
 
 void Message::receiveMessage(int sd) {
     contents.clear();
-    unsigned char recvbuf[reserved_space];
-    memset(recvbuf,0,reserved_space);
-    int result = recv(sd,(void*)recvbuf,reserved_space,0);
-    addContents(recvbuf, this->reserved_space);
+    unsigned char recvbuf[getReserved()];
+    memset(recvbuf,0,getReserved());
+    int result = recv(sd,(void*)recvbuf,getReserved(),0);
+    addContents(recvbuf, this->getReserved());
     if ( result == -1 ) {
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
         printf("ERROR WHILE RECIEVING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
-        this->status = BROKEN;
+        this->status = RECV_ERROR;
         abort();
     } else if (result == 0) {
-        this->status = BROKEN;
+        this->status = EMPTY;
     }
+    finalizeReception();
 }
+
+void Message::finalizeReception() {};
 
 integrity Message::getStatus() const {
     return this->status;
+}
+
+void Message::setStatus(integrity new_status) {
+    this->status = new_status;
 }
 
 buffer* Message::getBuffer() {
@@ -85,7 +92,7 @@ buffer* Message::getBuffer() {
 
 
 //  %%%%%%%%%%%%%%%%%
-//  %   DECORATOR   %
+//  %   DECORATOR   %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
 MessageDecorator::MessageDecorator(MessageInterface *message): wrapped_message(message) {}
@@ -118,9 +125,16 @@ void MessageDecorator::receiveMessage(int sd) {
     this->wrapped_message->receiveMessage(sd);
 };
 
+void MessageDecorator::finalizeReception() {
+    this->wrapped_message->finalizeReception();
+};
 
 integrity MessageDecorator::getStatus() const {
     return this->wrapped_message->getStatus();
+}
+
+void MessageDecorator::setStatus(integrity new_status) {
+    return this->wrapped_message->setStatus(new_status);
 }
 
 size_t MessageDecorator::getReserved() const {
@@ -136,7 +150,7 @@ buffer* MessageDecorator::getBuffer() {
 }
 
 //  %%%%%%%%%%%%%%%%%
-//  %    AES 256    %
+//  %    AES 256    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
 AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv)
@@ -154,10 +168,15 @@ void AddAES256::sendMessage(int sd) const {
 }
 
 void AddAES256::receiveMessage(int sd) {
-    this->wrapped_message->receiveMessage(sd);
+    wrapped_message->receiveMessage(sd);
+    finalizeReception();
+}
+
+void AddAES256::finalizeReception() {
     if (getStatus() == OK){
         this->decryptMessage();
     }
+    wrapped_message->finalizeReception();
 }
 
 void AddAES256::decryptMessage() {
@@ -174,7 +193,79 @@ void AddAES256::decryptMessage() {
     std::cout << "ziocan" << std::endl;
     this->wrapped_message->clearContents();
     this->wrapped_message->addContents(plaintext, len);
+    std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
     this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
     //memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
-    std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+    std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+}
+
+//  %%%%%%%%%%%%%%%%%
+//  %      MAC      %-----------------------------------------------------------------------
+//  %%%%%%%%%%%%%%%%%
+
+AddMAC::AddMAC(MessageInterface* message): MessageDecorator(message) {
+    this->getBuffer()->reserve(getReserved()+256);
+};
+
+void AddMAC::sendMessage(int sd) const {
+    unsigned char digest[getReserved()];
+    int len = hmac(key,32,getContents(),getReserved(),digest);
+    wrapped_message->addContentsBeginning(digest, len);
+    this->sendMessage(sd);
+}
+
+void AddMAC::receiveMessage(int sd) {
+    wrapped_message->receiveMessage(sd);
+    finalizeReception();
+}
+
+void AddMAC::finalizeReception() {
+    unsigned char received_digest[256];
+    unsigned char local_digest[getReserved()];
+
+    memmove(received_digest,getContents(),256);
+    memmove(getContentsMut(),getContents()+256,getReserved()-256);
+    getBuffer()->resize(getReserved()-256);
+
+    int len = hmac(key,32,getContents(),getReserved(),local_digest);
+
+    if( memcmp(received_digest, local_digest, 256) != 0 ) {
+        setStatus(WRONG_MAC);
+    }
+
+}
+
+//  %%%%%%%%%%%%%%%%%
+//  %   TIMESTAMP   %-----------------------------------------------------------------------
+//  %%%%%%%%%%%%%%%%%
+
+AddTimestamp::AddTimestamp(MessageInterface* message): MessageDecorator(message) {
+};
+
+void AddTimestamp::sendMessage(int sd) const {
+    std::time_t now = std::time(0);
+    std::tm * ptm = std::localtime(&now);
+    char buffer[19];
+    // Format: Mo, 15.06.2009 20:20:00
+    std::strftime(buffer, 19, "%d.%m.%Y%H:%M:%S", ptm);  
+    wrapped_message->addContentsBeginning((unsigned char*)buffer,19);
+    wrapped_message->sendMessage(sd);
+}
+
+void AddTimestamp::receiveMessage(int sd) {
+    wrapped_message->receiveMessage(sd);
+    finalizeReception();
+}
+
+void AddTimestamp::finalizeReception() {
+    unsigned char timestamp[19];
+    memmove(timestamp,getContents(),19);
+    memmove(getContentsMut(),getContents()+19,getReserved()-19);
+    getBuffer()->resize(getReserved()-19);
+    struct tm tm;
+    strptime((char *)timestamp, "%d.%m.%Y%H:%M:%S", &tm);
+    time_t t = mktime(&tm);
+    if (t != std::time(0)) {
+        setStatus(WRONG_TIMESTAMP);
+    }
 }

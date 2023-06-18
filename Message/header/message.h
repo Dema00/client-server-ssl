@@ -4,6 +4,8 @@
 
 #include "../../Shared/header/crypto.h"
 
+#include <ctime>
+
 #include <stdlib.h>
 
 #include <string.h>
@@ -21,11 +23,13 @@
 
 #include <openssl/conf.h>
 #include <openssl/evp.h>
-#include <openssl/err.h>
 
 enum integrity {
     OK,
-    BROKEN,
+    WRONG_TIMESTAMP,
+    WRONG_MAC,
+    EMPTY,
+    RECV_ERROR,
 };
 
 typedef std::vector<unsigned char> buffer;
@@ -44,9 +48,12 @@ class MessageInterface {
         virtual void sendMessage(int sd, const unsigned char* contents, int len) const = 0;
         virtual void receiveMessage(int sd) = 0;
 
+        virtual void finalizeReception() = 0;
+
         virtual size_t getContentsSize() const = 0;
         virtual size_t getReserved() const = 0;
         virtual integrity getStatus() const = 0;
+        virtual void setStatus(integrity new_status) = 0;
 
         virtual buffer* getBuffer() = 0;
 
@@ -56,7 +63,6 @@ class MessageInterface {
 class Message: public MessageInterface {
     protected:
         buffer contents;
-        size_t reserved_space;
         integrity status;
     public:
         Message(std::size_t buf_size);
@@ -69,12 +75,15 @@ class Message: public MessageInterface {
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
-        virtual void sendMessage(int sd, const unsigned char* contents, int len) const override;
+        void sendMessage(int sd, const unsigned char* contents, int len) const override;
         void receiveMessage(int sd) override;
+
+        void finalizeReception() override;
 
         size_t getContentsSize() const override;
         size_t getReserved() const override;
         integrity getStatus() const override;
+        void setStatus(integrity new_status) override;
 
         buffer* getBuffer() override;
 
@@ -87,7 +96,6 @@ class Message: public MessageInterface {
 class MessageDecorator: public MessageInterface {
     protected:
         MessageInterface* wrapped_message;
-    
     public:
         MessageDecorator(MessageInterface *message);
         
@@ -99,12 +107,15 @@ class MessageDecorator: public MessageInterface {
         unsigned char* getContentsMut() override;
 
         void sendMessage(int sd) const override;
-        virtual void sendMessage(int sd, const unsigned char* contents, int len) const override;
+        void sendMessage(int sd, const unsigned char* contents, int len) const override;
         void receiveMessage(int sd) override;
+
+        void finalizeReception() override;
 
         size_t getContentsSize() const override;
         size_t getReserved() const override;
         integrity getStatus() const override;
+        void setStatus(integrity new_status) override;
 
         buffer* getBuffer() override;
 
@@ -122,4 +133,23 @@ class AddAES256: public MessageDecorator {
         void decryptMessage();
         void sendMessage(int sd) const override;
         void receiveMessage(int sd) override;
+        void finalizeReception() override;
+};
+
+class AddTimestamp: public MessageDecorator {
+    public:
+        AddTimestamp(MessageInterface* message);
+        void sendMessage(int sd) const override;
+        void receiveMessage(int sd) override;
+        void finalizeReception() override;
+};
+
+class AddMAC: public MessageDecorator {
+    protected:
+        unsigned char* key;
+    public:
+        AddMAC(MessageInterface* message);
+        void sendMessage(int sd) const override;
+        void receiveMessage(int sd) override;
+        void finalizeReception() override;
 };
