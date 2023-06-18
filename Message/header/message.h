@@ -32,6 +32,8 @@ enum integrity {
     RECV_ERROR,
 };
 
+extern std::vector<std::string> MsgError;
+
 typedef std::vector<unsigned char> buffer;
 
 
@@ -146,9 +148,10 @@ class AddTimestamp: public MessageDecorator {
 
 class AddMAC: public MessageDecorator {
     protected:
+        unsigned char digest[256];
         unsigned char* key;
     public:
-        AddMAC(MessageInterface* message);
+        AddMAC(MessageInterface* message, unsigned char* key);
         void sendMessage(int sd) const override;
         void receiveMessage(int sd) override;
         void finalizeReception() override;

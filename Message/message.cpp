@@ -1,5 +1,14 @@
 #include "header/message.h"
 
+
+std::vector<std::string> MsgError = {
+    "Ok",
+    "Timestamps not matching",
+    "MAC digests not matching",
+    "Message is empty",
+    "Error during TCP reception",
+};
+
 //  %%%%%%%%%%%%%%%%%
 //  %    MESSAGE    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
@@ -61,10 +70,12 @@ void Message::sendMessage(int sd, const unsigned char* contents, int len) const 
 void Message::receiveMessage(int sd) {
     contents.clear();
     unsigned char recvbuf[getReserved()];
+    std::cout << "reserved: " <<getReserved() << std::endl;
     memset(recvbuf,0,getReserved());
     int result = recv(sd,(void*)recvbuf,getReserved(),0);
     addContents(recvbuf, this->getReserved());
     if ( result == -1 ) {
+        std::cout << "RECIEVING FROM  : " << sd << std::endl;
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
         printf("ERROR WHILE RECIEVING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
@@ -73,6 +84,7 @@ void Message::receiveMessage(int sd) {
     } else if (result == 0) {
         this->status = EMPTY;
     }
+    std::cout<<"msg in: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
     finalizeReception();
 }
 
@@ -159,12 +171,17 @@ AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned cha
 void AddAES256::sendMessage(int sd) const {
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
-    //std::cout<<"msg out plain: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+
+    unsigned char plaintext[this->getReserved()];
+    memset(plaintext, 0, getReserved());
+    memcpy(plaintext,wrapped_message->getContents(),getReserved());
     int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved()-16, this->key, this->iv, ciphertext);
-    //std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
-    this->wrapped_message->sendMessage(sd,ciphertext, len);
-    std::cout << "sent size " << len << std::endl;
-    std::cout << BIO_dump_fp (stdout, (const char *)ciphertext, len) << std::endl;
+    wrapped_message->clearContents();
+    wrapped_message->addContents(ciphertext, len);
+    std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+    this->wrapped_message->sendMessage(sd);
+    //wrapped_message->clearContents();
+    //wrapped_message->addContents(plaintext, getReserved());
 }
 
 void AddAES256::receiveMessage(int sd) {
@@ -175,26 +192,25 @@ void AddAES256::receiveMessage(int sd) {
 void AddAES256::finalizeReception() {
     if (getStatus() == OK){
         this->decryptMessage();
+    } else {
+        std::cout << MsgError[getStatus()] << std::endl;
     }
-    wrapped_message->finalizeReception();
 }
 
 void AddAES256::decryptMessage() {
-    std::cout<<"msg in: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
-    std::cout << "msg in len: " << this->getContentsSize() << std::endl;
     
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
 
     size_t plaintext_len = this->getContentsSize();
-    std::cout << "cipher len: " << plaintext_len << std::endl;
 
     int len = decrypt(getContentsMut(), plaintext_len, this->key, this->iv, plaintext);
-    std::cout << "ziocan" << std::endl;
+
     this->wrapped_message->clearContents();
     this->wrapped_message->addContents(plaintext, len);
     std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
     this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
+    wrapped_message->getBuffer()->shrink_to_fit();
     //memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
     std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
 }
@@ -203,33 +219,46 @@ void AddAES256::decryptMessage() {
 //  %      MAC      %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
-AddMAC::AddMAC(MessageInterface* message): MessageDecorator(message) {
-    this->getBuffer()->reserve(getReserved()+256);
+AddMAC::AddMAC(MessageInterface* message, unsigned char* key): MessageDecorator(message), key{key} {
 };
 
 void AddMAC::sendMessage(int sd) const {
-    unsigned char digest[getReserved()];
-    int len = hmac(key,32,getContents(),getReserved(),digest);
-    wrapped_message->addContentsBeginning(digest, len);
-    this->sendMessage(sd);
+    unsigned char digest[32];
+    unsigned int len = 32;
+    hmac(key,32,getContents(),getContentsSize(),digest, &len);
+    wrapped_message->getBuffer()->reserve(getReserved()+32);
+
+    wrapped_message->addContentsBeginning(digest, 32);
+        std::cout<<"msg out MAC: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getReserved()) <<std::endl;
+        std::cout<<"MAC Digest: \n" << BIO_dump_fp (stdout, (const char *)digest, 32) <<std::endl;
+    wrapped_message->sendMessage(sd);
+    wrapped_message->getBuffer()->resize(getReserved()-32);
+    wrapped_message->getBuffer()->shrink_to_fit();
+        std::cout<<"Reserved after resizing : "<<getReserved() << std::endl;
 }
 
 void AddMAC::receiveMessage(int sd) {
+    getBuffer()->reserve(getReserved()+32);
     wrapped_message->receiveMessage(sd);
     finalizeReception();
+    getBuffer()->resize(getReserved()-32);
+    getBuffer()->shrink_to_fit();
 }
 
 void AddMAC::finalizeReception() {
-    unsigned char received_digest[256];
-    unsigned char local_digest[getReserved()];
+    unsigned char received_digest[32];
+    unsigned char local_digest[32];
+    memset(local_digest,0,32);
 
-    memmove(received_digest,getContents(),256);
-    memmove(getContentsMut(),getContents()+256,getReserved()-256);
-    getBuffer()->resize(getReserved()-256);
+    memmove(received_digest,getContents(),32);
+    memmove(getContentsMut(),getContents()+32,getReserved()-32);
 
-    int len = hmac(key,32,getContents(),getReserved(),local_digest);
+        std::cout<<"msg IN MAC: \n" << BIO_dump_fp (stdout, (const char *)received_digest, 32) <<std::endl;
+    unsigned int len = 32;
+    hmac(key,32,getContents(),getContentsSize()-32,local_digest, &len);
+        std::cout<<"msg LOCAL MAC: \n" << BIO_dump_fp (stdout, (const char *)local_digest, 32) <<std::endl;
 
-    if( memcmp(received_digest, local_digest, 256) != 0 ) {
+    if( memcmp(received_digest, local_digest, 32) != 0 ) {
         setStatus(WRONG_MAC);
     }
 
@@ -243,12 +272,14 @@ AddTimestamp::AddTimestamp(MessageInterface* message): MessageDecorator(message)
 };
 
 void AddTimestamp::sendMessage(int sd) const {
+    std::cout << "added timestamp " << std::endl;
     std::time_t now = std::time(0);
     std::tm * ptm = std::localtime(&now);
-    char buffer[19];
+    char buffer[18];
     // Format: Mo, 15.06.2009 20:20:00
     std::strftime(buffer, 19, "%d.%m.%Y%H:%M:%S", ptm);  
-    wrapped_message->addContentsBeginning((unsigned char*)buffer,19);
+    wrapped_message->addContentsBeginning((unsigned char*)buffer,18);
+    std::cout<<"msg out time: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
     wrapped_message->sendMessage(sd);
 }
 
@@ -258,10 +289,11 @@ void AddTimestamp::receiveMessage(int sd) {
 }
 
 void AddTimestamp::finalizeReception() {
-    unsigned char timestamp[19];
-    memmove(timestamp,getContents(),19);
-    memmove(getContentsMut(),getContents()+19,getReserved()-19);
-    getBuffer()->resize(getReserved()-19);
+    unsigned char timestamp[18];
+    memmove(timestamp,getContents(),18);
+    memmove(getContentsMut(),getContents()+18,getReserved()-18);
+    getBuffer()->resize(getReserved()-18);
+    wrapped_message->getBuffer()->shrink_to_fit();
     struct tm tm;
     strptime((char *)timestamp, "%d.%m.%Y%H:%M:%S", &tm);
     time_t t = mktime(&tm);

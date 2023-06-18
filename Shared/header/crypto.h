@@ -18,5 +18,5 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
 int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
             unsigned char *iv, unsigned char *plaintext);
 
-int hmac(const unsigned char* key, int key_len, const unsigned char* data,
-    int data_len, unsigned char* md);
+void hmac(const unsigned char* key, int key_len, const unsigned char* data,
+    int data_len, unsigned char* md, unsigned int* md_len);
