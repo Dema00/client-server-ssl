@@ -150,7 +150,10 @@ void Server::sessionHandler(int client) {
         }
         received->addContentsBeginning((const unsigned char *)" : ",3);
         received->addContentsBeginning((const unsigned char *)username.c_str(),username.size());
-        BIO_dump_fp (stdout, (const char *)received->getContents(), received->getContentsSize());
+            DEBUG_MSG( std::cout << 
+                BIO_dump_fp (stdout, 
+                (const char *)received->getContents(), 
+                received->getContentsSize()) << std::endl;);
         std::cout << "<" << client << ">" << (const char *)received->getContents() << std::endl;
 
         delete received;

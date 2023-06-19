@@ -70,12 +70,14 @@ void Message::sendMessage(int sd, const unsigned char* contents, int len) const 
 void Message::receiveMessage(int sd) {
     contents.clear();
     unsigned char recvbuf[getReserved()];
-    std::cout << "reserved: " <<getReserved() << std::endl;
+
+        DEBUG_MSG(std::cout << "reserved: " <<getReserved() << std::endl;);
+
     memset(recvbuf,0,getReserved());
     int result = recv(sd,(void*)recvbuf,getReserved(),0);
     addContents(recvbuf, this->getReserved());
     if ( result == -1 ) {
-        std::cout << "RECIEVING FROM  : " << sd << std::endl;
+            DEBUG_MSG(std::cout <<"RECIEVING FROM  : " << sd << std::endl;);
         char buffer[ 256 ];
         char * errorMsg = strerror_r( errno, buffer, 256 ); // GNU-specific version, Linux default
         printf("ERROR WHILE RECIEVING MESSAGE: %s \n", errorMsg); //return value has to be used since buffer might not be modified
@@ -84,7 +86,7 @@ void Message::receiveMessage(int sd) {
     } else if (result == 0) {
         this->status = EMPTY;
     }
-    std::cout<<"msg in: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg in: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     finalizeReception();
 }
 
@@ -178,7 +180,7 @@ void AddAES256::sendMessage(int sd) const {
     int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved()-16, this->key, this->iv, ciphertext);
     wrapped_message->clearContents();
     wrapped_message->addContents(ciphertext, len);
-    std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     this->wrapped_message->sendMessage(sd);
     //wrapped_message->clearContents();
     //wrapped_message->addContents(plaintext, getReserved());
@@ -193,7 +195,7 @@ void AddAES256::finalizeReception() {
     if (getStatus() == OK){
         this->decryptMessage();
     } else {
-        std::cout << MsgError[getStatus()] << std::endl;
+        std::cerr << MsgError[getStatus()] << std::endl;
     }
 }
 
@@ -208,11 +210,11 @@ void AddAES256::decryptMessage() {
 
     this->wrapped_message->clearContents();
     this->wrapped_message->addContents(plaintext, len);
-    std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
     wrapped_message->getBuffer()->shrink_to_fit();
     //memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
-    std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
 }
 
 //  %%%%%%%%%%%%%%%%%
@@ -229,12 +231,12 @@ void AddMAC::sendMessage(int sd) const {
     wrapped_message->getBuffer()->reserve(getReserved()+32);
 
     wrapped_message->addContentsBeginning(digest, 32);
-        std::cout<<"msg out MAC: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getReserved()) <<std::endl;
-        std::cout<<"MAC Digest: \n" << BIO_dump_fp (stdout, (const char *)digest, 32) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg out MAC: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getReserved()) <<std::endl;);
+        DEBUG_MSG(std::cout<<"MAC Digest: \n" << BIO_dump_fp (stdout, (const char *)digest, 32) <<std::endl;);
     wrapped_message->sendMessage(sd);
     wrapped_message->getBuffer()->resize(getReserved()-32);
     wrapped_message->getBuffer()->shrink_to_fit();
-        std::cout<<"Reserved after resizing : "<<getReserved() << std::endl;
+        DEBUG_MSG(std::cout<<"Reserved after resizing : "<<getReserved() << std::endl;);
 }
 
 void AddMAC::receiveMessage(int sd) {
@@ -253,10 +255,10 @@ void AddMAC::finalizeReception() {
     memmove(received_digest,getContents(),32);
     memmove(getContentsMut(),getContents()+32,getReserved()-32);
 
-        std::cout<<"msg IN MAC: \n" << BIO_dump_fp (stdout, (const char *)received_digest, 32) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg IN MAC: \n" << BIO_dump_fp (stdout, (const char *)received_digest, 32) <<std::endl;);
     unsigned int len = 32;
     hmac(key,32,getContents(),getContentsSize()-32,local_digest, &len);
-        std::cout<<"msg LOCAL MAC: \n" << BIO_dump_fp (stdout, (const char *)local_digest, 32) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg LOCAL MAC: \n" << BIO_dump_fp (stdout, (const char *)local_digest, 32) <<std::endl;);
 
     if( memcmp(received_digest, local_digest, 32) != 0 ) {
         setStatus(WRONG_MAC);
@@ -272,14 +274,14 @@ AddTimestamp::AddTimestamp(MessageInterface* message): MessageDecorator(message)
 };
 
 void AddTimestamp::sendMessage(int sd) const {
-    std::cout << "added timestamp " << std::endl;
+        DEBUG_MSG(std::cout << "added timestamp " << std::endl;);
     std::time_t now = std::time(0);
     std::tm * ptm = std::localtime(&now);
     char buffer[18];
     // Format: Mo, 15.06.2009 20:20:00
     std::strftime(buffer, 19, "%d.%m.%Y%H:%M:%S", ptm);  
     wrapped_message->addContentsBeginning((unsigned char*)buffer,18);
-    std::cout<<"msg out time: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;
+        DEBUG_MSG(std::cout<<"msg out time: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     wrapped_message->sendMessage(sd);
 }
 

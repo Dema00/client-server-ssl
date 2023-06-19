@@ -2,6 +2,13 @@
 #define MESSAGE_H
 #endif
 
+#ifdef DEBUG
+#define DEBUG_MSG(exp) do { exp } while( false )
+#include <sstream>
+#else
+#define DEBUG_MSG(str) do { } while ( false )
+#endif
+
 #include "../../Shared/header/crypto.h"
 
 #include <ctime>
