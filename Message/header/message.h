@@ -53,8 +53,8 @@ class MessageInterface {
         virtual const unsigned char* getContents() const = 0;
         virtual unsigned char* getContentsMut() = 0;
 
-        virtual void sendMessage(int sd) const = 0;
-        virtual void sendMessage(int sd, const unsigned char* contents, int len) const = 0;
+        virtual void sendMessage(int sd) = 0;
+        virtual void sendMessage(int sd, const unsigned char* contents, int len) = 0;
         virtual void receiveMessage(int sd) = 0;
 
         virtual void finalizeReception() = 0;
@@ -83,8 +83,8 @@ class Message: public MessageInterface {
         const unsigned char* getContents() const override;
         unsigned char* getContentsMut() override;
 
-        void sendMessage(int sd) const override;
-        void sendMessage(int sd, const unsigned char* contents, int len) const override;
+        void sendMessage(int sd) override;
+        void sendMessage(int sd, const unsigned char* contents, int len) override;
         void receiveMessage(int sd) override;
 
         void finalizeReception() override;
@@ -115,8 +115,8 @@ class MessageDecorator: public MessageInterface {
         const unsigned char* getContents() const override;
         unsigned char* getContentsMut() override;
 
-        void sendMessage(int sd) const override;
-        void sendMessage(int sd, const unsigned char* contents, int len) const override;
+        void sendMessage(int sd) override;
+        void sendMessage(int sd, const unsigned char* contents, int len) override;
         void receiveMessage(int sd) override;
 
         void finalizeReception() override;
@@ -140,7 +140,7 @@ class AddAES256: public MessageDecorator {
     public:
         AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv);
         void decryptMessage();
-        void sendMessage(int sd) const override;
+        void sendMessage(int sd) override;
         void receiveMessage(int sd) override;
         void finalizeReception() override;
 };
@@ -148,7 +148,7 @@ class AddAES256: public MessageDecorator {
 class AddTimestamp: public MessageDecorator {
     public:
         AddTimestamp(MessageInterface* message);
-        void sendMessage(int sd) const override;
+        void sendMessage(int sd) override;
         void receiveMessage(int sd) override;
         void finalizeReception() override;
 };
@@ -159,7 +159,22 @@ class AddMAC: public MessageDecorator {
         unsigned char* key;
     public:
         AddMAC(MessageInterface* message, unsigned char* key);
-        void sendMessage(int sd) const override;
+        void sendMessage(int sd) override;
         void receiveMessage(int sd) override;
         void finalizeReception() override;
+};
+
+class AddRSA: public MessageDecorator {
+    protected:
+        EVP_PKEY* key;
+    public:
+        AddRSA(MessageInterface* message, unsigned char* key);
+        void sendMessage(int sd) override;
+        void receiveMessage(int sd) override;
+        void finalizeReception() override;
+        void decryptMessage();
+
+        ~AddRSA() {
+            EVP_PKEY_free(key);
+        }
 };

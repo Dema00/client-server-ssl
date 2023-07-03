@@ -30,8 +30,8 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 void hmac(const unsigned char* key, int key_len, const unsigned char* data,
     int data_len, unsigned char* md, unsigned int* md_len);
 
-int rsa_encrypt(const unsigned char* key, int key_len, unsigned char *plaintext, int plaintext_len,
+int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 	unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv, unsigned char *ciphertext);
 
-int rsa_decrypt(const unsigned char* key, int key_len, unsigned char *ciphertext, int ciphertext_len,
+int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,
 	unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv, unsigned char *plaintext);

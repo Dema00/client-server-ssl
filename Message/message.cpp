@@ -47,7 +47,7 @@ size_t Message::getReserved() const {
     return contents.capacity();
 }
 
-void Message::sendMessage(int sd) const {
+void Message::sendMessage(int sd) {
 
     if ( send(sd, getContents(), getContentsSize(), 0) == -1) {
         char buffer[ 256 ];
@@ -57,7 +57,7 @@ void Message::sendMessage(int sd) const {
     }
 }
 
-void Message::sendMessage(int sd, const unsigned char* contents, int len) const {
+void Message::sendMessage(int sd, const unsigned char* contents, int len) {
 
     if ( send(sd, contents, len, 0) == -1) {
         char buffer[ 256 ];
@@ -129,10 +129,10 @@ unsigned char* MessageDecorator::getContentsMut() {
     return this->wrapped_message->getContentsMut();
 };
 
-void MessageDecorator::sendMessage(int sd) const {
+void MessageDecorator::sendMessage(int sd) {
     this->wrapped_message->sendMessage(sd);
 };
-void MessageDecorator::sendMessage(int sd, const unsigned char* contents, int len) const {
+void MessageDecorator::sendMessage(int sd, const unsigned char* contents, int len) {
     this->wrapped_message->sendMessage(sd, contents, len);
 }
 void MessageDecorator::receiveMessage(int sd) {
@@ -164,13 +164,86 @@ buffer* MessageDecorator::getBuffer() {
 }
 
 //  %%%%%%%%%%%%%%%%%
+//  %    AES RSA    %-----------------------------------------------------------------------
+//  %%%%%%%%%%%%%%%%%
+
+
+AddRSA::AddRSA(MessageInterface* message, unsigned char* key): MessageDecorator(message){
+    BIO* bufio = BIO_new_mem_buf((void*)key, 32);
+    this->key = PEM_read_bio_PUBKEY(bufio, NULL, NULL, NULL);
+    BIO_free(bufio);
+};
+
+void AddRSA::sendMessage(int sd) {
+    unsigned char ciphertext[this->getReserved()];
+    memset(ciphertext, 0, getReserved());
+
+    unsigned char plaintext[this->getReserved()];
+    memset(plaintext, 0, getReserved());
+    memcpy(plaintext,wrapped_message->getContents(),getReserved());
+
+    // allocate buffers for encrypted key and IV:
+    unsigned char* encrypted_key = (unsigned char*)malloc(EVP_PKEY_size(key));
+    unsigned char* iv = (unsigned char*)malloc(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    if(!encrypted_key || !iv) { std::cerr << "Error: malloc returned NULL (encrypted key too big?)\n"; exit(1); }
+
+    int len = rsa_encrypt(&key, plaintext, wrapped_message->getContentsSize(), encrypted_key, EVP_PKEY_size(key), iv, ciphertext);
+
+    wrapped_message->clearContents();
+    wrapped_message->addContents(iv,16);
+    wrapped_message->addContents(encrypted_key,32);
+    wrapped_message->addContents(ciphertext, len);
+        DEBUG_MSG(std::cout<<"msg out rsa: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+    wrapped_message->sendMessage(sd);
+
+    free(encrypted_key);
+    free(iv);
+}
+
+void AddRSA::receiveMessage(int sd) {
+    wrapped_message->receiveMessage(sd);
+    finalizeReception();
+}
+
+void AddRSA::finalizeReception() {
+    if (getStatus() == OK){
+        this->decryptMessage();
+    } else {
+        std::cerr << MsgError[getStatus()] << std::endl;
+    }
+}
+
+void AddRSA::decryptMessage() {
+    unsigned char plaintext[this->getReserved()];
+    memset(plaintext, 0, getReserved());
+
+    unsigned char ciphertext[this->getReserved()];
+    memset(ciphertext, 0, getReserved());
+
+    unsigned char iv[EVP_CIPHER_iv_length(EVP_aes_256_cbc())];
+    memset(iv, 0, EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+
+    unsigned char encrypted_key[EVP_PKEY_size(key)];
+    memset(iv, 0, EVP_PKEY_size(key));
+
+    memmove(iv,wrapped_message->getContents(),16);
+    memmove(encrypted_key,wrapped_message->getContents(),32);
+    memmove(ciphertext,wrapped_message->getContents(),getReserved()-16-32);
+    int len = rsa_decrypt(key, ciphertext,getReserved()-16-32,encrypted_key,32,iv,plaintext);
+    
+    wrapped_message->clearContents();
+    wrapped_message->addContents(plaintext,len);
+        DEBUG_MSG(std::cout<<"msg in rsa clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+}
+
+//  %%%%%%%%%%%%%%%%%
 //  %    AES 256    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
 AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv)
     : MessageDecorator(message), key{key}, iv{iv} {};
 
-void AddAES256::sendMessage(int sd) const {
+void AddAES256::sendMessage(int sd) {
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
 
@@ -224,7 +297,7 @@ void AddAES256::decryptMessage() {
 AddMAC::AddMAC(MessageInterface* message, unsigned char* key): MessageDecorator(message), key{key} {
 };
 
-void AddMAC::sendMessage(int sd) const {
+void AddMAC::sendMessage(int sd) {
     unsigned char digest[32];
     unsigned int len = 32;
     hmac(key,32,getContents(),getContentsSize(),digest, &len);
@@ -273,7 +346,7 @@ void AddMAC::finalizeReception() {
 AddTimestamp::AddTimestamp(MessageInterface* message): MessageDecorator(message) {
 };
 
-void AddTimestamp::sendMessage(int sd) const {
+void AddTimestamp::sendMessage(int sd) {
         DEBUG_MSG(std::cout << "added timestamp " << std::endl;);
     std::time_t now = std::time(0);
     std::tm * ptm = std::localtime(&now);

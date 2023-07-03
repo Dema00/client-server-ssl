@@ -103,22 +103,17 @@ void hmac(const unsigned char* key, int key_len, const unsigned char* data,
                     md, md_len);
 }
 
-int rsa_encrypt(const unsigned char* key, int key_len, unsigned char *plaintext, int plaintext_len,
+int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 	unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv, unsigned char *ciphertext) {
-
-    BIO *bufio;
+        
     EVP_CIPHER_CTX *ctx;
 	int ciphertext_len;
 	int len;
 
-
-    bufio = BIO_new_mem_buf((void*)key, key_len);
-    EVP_PKEY* pub_key = PEM_read_bio_PUBKEY(bufio, NULL, NULL, NULL);
-
     if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
     if(1 != EVP_SealInit(ctx, EVP_aes_256_cbc(), &encrypted_key,
-		&encrypted_key_len, iv, &pub_key, 1))
+		&encrypted_key_len, iv, pub_key, 1))
 		handleErrors();
 
     if(1 != EVP_SealUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
@@ -134,16 +129,12 @@ int rsa_encrypt(const unsigned char* key, int key_len, unsigned char *plaintext,
 	return ciphertext_len;  
 }
 
-int rsa_decrypt(const unsigned char* key, int key_len, unsigned char *ciphertext, int ciphertext_len,
+int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,
 	unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv, unsigned char *plaintext) {
     
-    BIO *bufio;
     EVP_CIPHER_CTX *ctx;
 	int plaintext_len;
 	int len;
-
-    bufio = BIO_new_mem_buf((void*)key, key_len);
-    EVP_PKEY* priv_key = PEM_read_bio_PUBKEY(bufio, NULL, NULL, NULL);
 
     if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
