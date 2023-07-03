@@ -8,3 +8,7 @@
 #include <iostream>
 
 void get_user_psw(sqlite3* db, std::string username, char* out);
+
+void get_user_privkey(sqlite3* db, std::string username, char* out);
+
+void get_user_pubkey(sqlite3* db, std::string username, char* out);
