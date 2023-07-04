@@ -18,7 +18,7 @@ int main(int args_count, char *args[]) {
 		exit(1);
 	}
 
-    Client client = Client(hostname, portnum);
+    Client client = Client(hostname, portnum, "tony", "clients.db");
 
     client.startClient();
 

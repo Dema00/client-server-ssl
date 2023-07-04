@@ -16,7 +16,7 @@ void get_user_psw(sqlite3* db, std::string username, char* out) {
     sqlite3_finalize(stmt);
 }
 
-void get_user_privkey(sqlite3* db, std::string username, char* out) {
+int get_user_privkey(sqlite3* db, std::string username, unsigned char* out) {
     sqlite3_stmt* stmt;
 
     char* query = sqlite3_mprintf("SELECT pKey FROM users WHERE name = %Q\0",username.c_str());
@@ -27,12 +27,16 @@ void get_user_privkey(sqlite3* db, std::string username, char* out) {
     if (sqlite3_step(stmt) != SQLITE_ROW){
         std::cerr << username << " not foud! " << sqlite3_errmsg(db) << std::endl;
     }
-    strcpy(out,(char*)(sqlite3_column_text(stmt, 0)));
+
+    int size = sqlite3_column_bytes(stmt, 0);
+    memmove(out,(unsigned char*)sqlite3_column_blob(stmt, 0),size);
     
     sqlite3_finalize(stmt);
+
+    return size;
 }
 
-void get_user_pubkey(sqlite3* db, std::string username, char* out) {
+int get_user_pubkey(sqlite3* db, std::string username, unsigned char* out) {
     sqlite3_stmt* stmt;
 
     char* query = sqlite3_mprintf("SELECT pKey FROM users WHERE username = %Q\0",username.c_str());
@@ -43,8 +47,12 @@ void get_user_pubkey(sqlite3* db, std::string username, char* out) {
     if (sqlite3_step(stmt) != SQLITE_ROW){
         std::cerr << username << " not foud! " << sqlite3_errmsg(db) << std::endl;
     }
-    strcpy(out,(char*)(sqlite3_column_text(stmt, 0)));
+
+    int size = sqlite3_column_bytes(stmt, 0);
+    memmove(out,(unsigned char*)sqlite3_column_blob(stmt, 0),size);
     
     sqlite3_finalize(stmt);
+
+    return size;
 }
 

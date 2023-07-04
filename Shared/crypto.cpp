@@ -116,7 +116,7 @@ int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 		&encrypted_key_len, iv, pub_key, 1))
 		handleErrors();
 
-    if(1 != EVP_SealUpdate(ctx, ciphertext, &len, plaintext, plaintext_len))
+    if(1 != EVP_SealUpdate(ctx, ciphertext, &len, plaintext, plaintext_len+1))
 		handleErrors();
 	ciphertext_len = len;
 
@@ -139,8 +139,10 @@ int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_le
     if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
     if(1 != EVP_OpenInit(ctx, EVP_aes_256_cbc(), encrypted_key,
-		encrypted_key_len, iv, priv_key))
-		handleErrors();
+		encrypted_key_len, iv, priv_key)){
+            std::cerr << "failed to init RSA decrypt" << std::endl;
+		    handleErrors();
+    }
 
     if(1 != EVP_OpenUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len))
 		handleErrors();

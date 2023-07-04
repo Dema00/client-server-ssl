@@ -168,30 +168,57 @@ buffer* MessageDecorator::getBuffer() {
 //  %%%%%%%%%%%%%%%%%
 
 
-AddRSA::AddRSA(MessageInterface* message, unsigned char* key): MessageDecorator(message){
-    BIO* bufio = BIO_new_mem_buf((void*)key, 32);
-    this->key = PEM_read_bio_PUBKEY(bufio, NULL, NULL, NULL);
+AddRSA::AddRSA(MessageInterface* message, unsigned char* raw_key): MessageDecorator(message){
+    BIO* bufio = BIO_new_mem_buf((void*)raw_key, -1);
+        DEBUG_MSG(std::cout<<"RAW RSA KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key, 1700) <<std::endl;);
+
+    if (memcmp(raw_key,"-----BEGIN PUB",strlen("-----BEGIN PUB"))== 0){
+        this->key = PEM_read_bio_PUBKEY(bufio, NULL, 0, NULL);
+    } else {
+        this->key = PEM_read_bio_PrivateKey(bufio, NULL, 0, NULL);
+    }
+
+    if (this->key == NULL) {
+        std::cerr << "Error while opening the RSA key"<< std::endl;
+    }
+
+        DEBUG_MSG(std::cout<<"RSA KEY: \n" << BIO_dump_fp (stdout, (const char *)this->key, EVP_PKEY_size(key)) <<std::endl;);
+    
     BIO_free(bufio);
+        DEBUG_MSG(std::cout<<"created EVP_PKEY" << std::endl;);
 };
 
 void AddRSA::sendMessage(int sd) {
+        DEBUG_MSG(std::cout<<"------- begin RSA send messagge -------" << std::endl;);
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
 
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
-    memcpy(plaintext,wrapped_message->getContents(),getReserved());
+    memmove(plaintext,wrapped_message->getContents(),getReserved());
+        DEBUG_MSG(std::cout<<"RSA PLAINTEXT: \n" << BIO_dump_fp (stdout, (const char *)plaintext, getContentsSize()) <<std::endl;);
 
     // allocate buffers for encrypted key and IV:
     unsigned char* encrypted_key = (unsigned char*)malloc(EVP_PKEY_size(key));
     unsigned char* iv = (unsigned char*)malloc(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
     if(!encrypted_key || !iv) { std::cerr << "Error: malloc returned NULL (encrypted key too big?)\n"; exit(1); }
 
+        DEBUG_MSG(std::cout<<"Succesfully allocated enc_key and iv" << std::endl;);
+
     int len = rsa_encrypt(&key, plaintext, wrapped_message->getContentsSize(), encrypted_key, EVP_PKEY_size(key), iv, ciphertext);
+    char len_str [5];
+    sprintf(len_str, "%03d", len);
+
+        DEBUG_MSG(std::cout<<"Succesfully encrypted RSA msg" << std::endl;);
+        DEBUG_MSG(std::cout<<"RSA msg Size" << this->getReserved() <<std::endl;);
+        DEBUG_MSG(std::cout<<"IV: \n" << BIO_dump_fp (stdout, (const char *)iv, EVP_CIPHER_iv_length(EVP_aes_256_cbc())) <<std::endl;);
+        DEBUG_MSG(std::cout<<"Enc_key: \n" << BIO_dump_fp (stdout, (const char *)encrypted_key, EVP_PKEY_size(key)) <<std::endl;);
+        DEBUG_MSG(std::cout<<"RSA CIPHERTEXT: \n" << BIO_dump_fp (stdout, (const char *)ciphertext, len) <<std::endl;);
 
     wrapped_message->clearContents();
-    wrapped_message->addContents(iv,16);
-    wrapped_message->addContents(encrypted_key,32);
+    wrapped_message->addContents(iv,EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    wrapped_message->addContents(encrypted_key,EVP_PKEY_size(key));
+    wrapped_message->addContents((unsigned char*)len_str, strlen(len_str));
     wrapped_message->addContents(ciphertext, len);
         DEBUG_MSG(std::cout<<"msg out rsa: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     wrapped_message->sendMessage(sd);
@@ -214,6 +241,7 @@ void AddRSA::finalizeReception() {
 }
 
 void AddRSA::decryptMessage() {
+        DEBUG_MSG(std::cout<<"------- begin RSA decrypt messagge -------" << std::endl;);
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
 
@@ -226,14 +254,30 @@ void AddRSA::decryptMessage() {
     unsigned char encrypted_key[EVP_PKEY_size(key)];
     memset(iv, 0, EVP_PKEY_size(key));
 
-    memmove(iv,wrapped_message->getContents(),16);
-    memmove(encrypted_key,wrapped_message->getContents(),32);
-    memmove(ciphertext,wrapped_message->getContents(),getReserved()-16-32);
-    int len = rsa_decrypt(key, ciphertext,getReserved()-16-32,encrypted_key,32,iv,plaintext);
+    unsigned char len_str [3];
+    int cipher_len;
+
+
+    int iv_size = EVP_CIPHER_iv_length(EVP_aes_256_cbc());
+    int ekey_size = EVP_PKEY_size(key);
+
+    memmove(iv,wrapped_message->getContents(), iv_size);
+    memmove(encrypted_key, wrapped_message->getContents()+iv_size, ekey_size);
+    memmove(len_str, wrapped_message->getContents()+iv_size+ekey_size, 3);
+    cipher_len = atoi((char*)len_str);
+    memmove(ciphertext,wrapped_message->getContents() +iv_size +ekey_size+3,cipher_len);
+
+        DEBUG_MSG(std::cout<<"IV: \n" << BIO_dump_fp (stdout, (const char *)iv, iv_size) <<std::endl;);
+        DEBUG_MSG(std::cout<<"Enc_key: \n" << BIO_dump_fp (stdout, (const char *)encrypted_key, ekey_size) <<std::endl;);
+        DEBUG_MSG(std::cout<<"Plaintext len: \n" << cipher_len <<std::endl;);
+        DEBUG_MSG(std::cout<<"Plaintext: \n" << BIO_dump_fp (stdout, (const char *)ciphertext, cipher_len) <<std::endl;);
+
+    int len = rsa_decrypt(key, ciphertext,cipher_len,encrypted_key,ekey_size,iv,plaintext);
     
     wrapped_message->clearContents();
     wrapped_message->addContents(plaintext,len);
-        DEBUG_MSG(std::cout<<"msg in rsa clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+        DEBUG_MSG(std::cout<<"normal output of rsa dec" << (const char *)getContents() << std::endl;);
+        DEBUG_MSG(std::cout<<"msg in rsa clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()+1) <<std::endl;);
 }
 
 //  %%%%%%%%%%%%%%%%%

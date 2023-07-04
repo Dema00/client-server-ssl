@@ -43,6 +43,9 @@ class Server {
 
         // db management
         sqlite3* db;
+
+        // server private key
+        buffer priv_key;
         
         // user management
         std::map<std::string,int> connected_users;

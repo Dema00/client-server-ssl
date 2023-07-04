@@ -3,6 +3,7 @@
 #endif
 
 #include "../../../Message/header/message.h"
+#include "../../../Shared/header/database.h"
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -13,17 +14,25 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#include<vector>
+
 #include <iostream>
 #include <fstream>
 #include <thread>
 
 class Client {
     private:
+        const char *uname;
         int sd;
         struct sockaddr_in addr;
         socklen_t addr_size;
 
+        sqlite3* db;
+
         const char *hostname;
+
+        buffer priv_key;
+        buffer pub_key;
 
         void clientProcess();
         void openConnection();
@@ -33,8 +42,14 @@ class Client {
         void messagePrinter();
 
     public:
-        Client(const char *hostname, int port);
+        Client(const char *hostname, int port, const char* uname, const char* db_path);
         void startClient();
         void stopClient();
+        ~Client() {
+            delete[] uname;
+            delete[] hostname;
+            sqlite3_close_v2(db);
+        }
+
 
 };

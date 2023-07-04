@@ -16,6 +16,11 @@ Server::Server(int portnum, const char* db_path): threads() {
         abort();
     }
 
+    // copies all data into buffer
+    std::ifstream input( "../Keys/private_server.pem", std::ios::binary );
+
+    // copies all data into buffer
+    this->priv_key = std::vector<unsigned char>(std::istreambuf_iterator<char>(input), {});
     this->status = RUN;
     
     std::cout<< "New server created with address: localhost:" << portnum <<std::endl;
@@ -98,65 +103,51 @@ void Server::connectionManager() {
 };
 
 void Server::sessionHandler(int client) {
-    unsigned char key[32] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-                           0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
-                           0x36, 0x37, 0x38, 0x39, 0x30, 0x31, 0x32, 0x33,
-                           0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0x30, 0x31
-                         };
+    //------------------------------------------------
+    Message auth_msg(128);
+    auth_msg.receiveMessage(client);
+    std::string username((const char*)auth_msg.getContents());
+    auth_msg.clearContents();
 
-    /* A 128 bit IV */
-    unsigned char iv[16] = { 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37,
-                          0x38, 0x39, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35
-                        };
-    
-    char psw[128];
-    MessageInterface* un_msg = new AddTimestamp( 
-        new AddAES256 ( new AddMAC( new Message(128), key), key, iv));
-    un_msg->receiveMessage(client);
-    std::string username((const char*)un_msg->getContents());
-    delete un_msg;
+    bool auth = false;
 
-    get_user_psw(this->db, username, psw);
-
-    MessageInterface* up_msg = new AddTimestamp( 
-        new AddAES256 ( new AddMAC( new Message(128), key), key, iv));
-    up_msg->receiveMessage(client);
-    std::string user_pass((const char*)up_msg->getContents());
-    delete up_msg;
-    bool logged = strncmp(psw,user_pass.c_str(),strlen(psw)) == 0;
+    unsigned char pkey [2000]; 
+    int k_size = get_user_pubkey(db,username,pkey);
 
     if ( this->connected_users.count(username) == 0) {
         this->connected_users[username] = client;
         std::cout << ">>user " << username << " logged in!" << std::endl;
+        auth_msg.addContents((const unsigned char*)"USERNAME_OK",strlen("USERNAME_OK"));
+        auth_msg.sendMessage(client);
+        auth_msg.clearContents();
+        auth = true;
     } else
     {
-        std::cout << ">>user " << username << " is already logged in!" << std::endl;
-        logged = false;
-        Message bye(1024);
-        bye.addContents((const unsigned char *)"user is already logged in",26);
-        bye.sendMessage(client);
+        std::cout << ">>user " << username << " is already connected!" << std::endl;
+        auth_msg.addContents((const unsigned char*)"USERNAME_ERR",strlen("USERNAME_ERR"));
+        auth_msg.sendMessage(client);
+        auth_msg.clearContents();
         close(client);
     }
-    while (logged) {
-        MessageInterface* received = new AddTimestamp (
-            new AddAES256( new AddMAC( new Message(128), key),key,iv));
-        received->receiveMessage(client);
-        if (received->getStatus() != OK) {
+
+    //------------------------------------------------
+    
+    MessageInterface* comm_in = new AddRSA( new Message(512),this->priv_key.data());
+    while (auth) {
+        comm_in->receiveMessage(client);
+        if (comm_in->getStatus() != OK) {
             std::cerr << "client " << username << " has disconnected" << std::endl;
             this->connected_users.erase(username);
             close(client);
-            delete received;
             break;
         }
-        received->addContentsBeginning((const unsigned char *)" : ",3);
-        received->addContentsBeginning((const unsigned char *)username.c_str(),username.size());
             DEBUG_MSG( std::cout << 
                 BIO_dump_fp (stdout, 
-                (const char *)received->getContents(), 
-                received->getContentsSize()) << std::endl;);
-        std::cout << "<" << client << ">" << (const char *)received->getContents() << std::endl;
-
-        delete received;
+                (const char *)comm_in->getContents(), 
+                comm_in->getContentsSize()) << std::endl;);
+        std::cout << "<" << client << ">" << (const char *)comm_in->getContents() << std::endl;
+        comm_in->clearContents();
     }
+    delete comm_in;
     return;
 };

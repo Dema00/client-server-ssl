@@ -168,7 +168,7 @@ class AddRSA: public MessageDecorator {
     protected:
         EVP_PKEY* key;
     public:
-        AddRSA(MessageInterface* message, unsigned char* key);
+        AddRSA(MessageInterface* message, unsigned char* raw_key);
         void sendMessage(int sd) override;
         void receiveMessage(int sd) override;
         void finalizeReception() override;
