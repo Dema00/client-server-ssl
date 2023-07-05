@@ -15,6 +15,10 @@
 #include <openssl/hmac.h>
 #include <openssl/pem.h>
 #include <openssl/engine.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/x509_vfy.h>
+ 
 
 #include <iostream>
 
@@ -35,3 +39,12 @@ int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 
 int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,
 	unsigned char *encrypted_key, int encrypted_key_len, unsigned char *iv, unsigned char *plaintext);
+
+std::pair<EVP_PKEY*,EVP_PKEY*> generate_rsa_keypair();
+
+void verify_cert(X509* ca_cert, X509_CRL* crl, X509* cert);
+
+void verify_signature(unsigned char* sig, int sig_size,
+    unsigned char* to_verify, int to_verify_size, X509* cert);
+
+void sign();
