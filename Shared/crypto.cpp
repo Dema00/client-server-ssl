@@ -238,7 +238,7 @@ void verify_cert(X509* ca_cert, X509_CRL* crl, X509* cert) {
         DEBUG_MSG(
             char* tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
             char* tmp2 = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
-            cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
+            std::cout << "Certificate of \"" << tmp << "\" (released by \"" << tmp2 << "\") verified successfully\n";
             free(tmp);
             free(tmp2);
         );
@@ -272,7 +272,7 @@ void verify_signature(unsigned char* sig, int sig_size,
     }
 
     // print the successful signature verification to screen:
-        DEBUG_MSG(cout << "The Signature has been correctly verified! The message is authentic!\n";);
+        DEBUG_MSG(std::cout << "The Signature has been correctly verified! The message is authentic!\n";);
 
     // deallocate data:
     EVP_MD_CTX_free(md_ctx);
@@ -284,28 +284,38 @@ void sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsig
     int ret;
 
     // declare some useful variables:
-   const EVP_MD* md = EVP_sha256();
+    const EVP_MD* md = EVP_sha256();
 
-   // create the signature context:
-   EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
-   if(!md_ctx){ std::cerr << "Error: EVP_MD_CTX_new returned NULL\n"; exit(1); }
+    // create the signature context:
+    EVP_MD_CTX* md_ctx = EVP_MD_CTX_new();
+    if(!md_ctx){ std::cerr << "Error: EVP_MD_CTX_new returned NULL\n"; exit(1); }
 
-   // allocate buffer for signature:
-   //unsigned char* sgnt_buf = (unsigned char*)malloc(EVP_PKEY_size(priv_key));
-   //if(!sgnt_buf) { std::cerr << "Error: malloc returned NULL (signature too big?)\n"; exit(1); }
+    // allocate buffer for signature:
+    //unsigned char* sgnt_buf = (unsigned char*)malloc(EVP_PKEY_size(priv_key));
+    //if(!sgnt_buf) { std::cerr << "Error: malloc returned NULL (signature too big?)\n"; exit(1); }
 
-   // sign the plaintext:
-   // (perform a single update on the whole plaintext, 
-   // assuming that the plaintext is not huge)
-   ret = EVP_SignInit(md_ctx, md);
-   if(ret == 0){ std::cerr << "Error: EVP_SignInit returned " << ret << "\n"; exit(1); }
-   ret = EVP_SignUpdate(md_ctx, plaintext, plaintext_len);
-   if(ret == 0){ std::cerr << "Error: EVP_SignUpdate returned " << ret << "\n"; exit(1); }
-   unsigned int sgnt_size;
-   ret = EVP_SignFinal(md_ctx, signed_msg, &sgnt_size, priv_key);
-   if(ret == 0){ std::cerr << "Error: EVP_SignFinal returned " << ret << "\n"; exit(1); }
+    // sign the plaintext:
+    // (perform a single update on the whole plaintext, 
+    // assuming that the plaintext is not huge)
+    ret = EVP_SignInit(md_ctx, md);
+    if(ret == 0){ std::cerr << "Error: EVP_SignInit returned " << ret << "\n"; exit(1); }
+    ret = EVP_SignUpdate(md_ctx, plaintext, plaintext_len);
+    if(ret == 0){ std::cerr << "Error: EVP_SignUpdate returned " << ret << "\n"; exit(1); }
+    unsigned int sgnt_size;
+    ret = EVP_SignFinal(md_ctx, signed_msg, &sgnt_size, priv_key);
+    if(ret == 0){ std::cerr << "Error: EVP_SignFinal returned " << ret << "\n"; exit(1); }
 
-   // delete the digest and the private key from memory:
-   EVP_MD_CTX_free(md_ctx);
+    // delete the digest and the private key from memory:
+    EVP_MD_CTX_free(md_ctx);
 
+}
+
+void sha256(const unsigned char* input, int len, unsigned char* out){
+    //unsigned char hash[SHA256_DIGEST_LENGTH];
+
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, input, len);
+    SHA256_Final(out, &sha256);
+        DEBUG_MSG(std::cout<<"HASH: \n" << BIO_dump_fp (stdout, (const char *)out, SHA256_DIGEST_LENGTH) <<std::endl;);
 }

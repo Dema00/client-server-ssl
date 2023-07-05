@@ -109,18 +109,15 @@ void Server::sessionHandler(int client) {
     std::string username((const char*)auth_msg.getContents());
     auth_msg.clearContents();
 
-    bool auth = false;
+    bool login = false;
 
-    unsigned char pkey [2000]; 
-    int k_size = get_user_pubkey(db,username,pkey);
+    //username handling
 
     if ( this->connected_users.count(username) == 0) {
-        this->connected_users[username] = client;
-        std::cout << ">>user " << username << " logged in!" << std::endl;
+        std::cout << ">>user " << username << " connected!" << std::endl;
         auth_msg.addContents((const unsigned char*)"USERNAME_OK",strlen("USERNAME_OK"));
         auth_msg.sendMessage(client);
         auth_msg.clearContents();
-        auth = true;
     } else
     {
         std::cout << ">>user " << username << " is already connected!" << std::endl;
@@ -130,10 +127,48 @@ void Server::sessionHandler(int client) {
         close(client);
     }
 
+    //send nonce 
+
+    unsigned char nonce_buf [SHA256_DIGEST_LENGTH];
+    RAND_bytes(nonce_buf, SHA256_DIGEST_LENGTH);
+    auth_msg.addContents(nonce_buf, SHA256_DIGEST_LENGTH);
+    auth_msg.sendMessage(client);
+    auth_msg.clearContents();
+
+    //password handling
+
+    while (!login) {
+        auth_msg.receiveMessage(client);
+        unsigned char psw_hash [SHA256_DIGEST_LENGTH];
+        memset(psw_hash,0,SHA256_DIGEST_LENGTH);
+        get_user_psw(db,username,psw_hash);
+        XOR(psw_hash,nonce_buf,psw_hash,SHA256_DIGEST_LENGTH);
+
+        if (memcmp((const char*)auth_msg.getContents(),psw_hash, SHA256_DIGEST_LENGTH) == 0) {
+            std::cout<< username <<" logged in succesfully!"<<std::endl;
+            this->connected_users[username] = client;
+            auth_msg.clearContents();
+            auth_msg.addContents((const unsigned char*)"PASSWORD_OK",strlen("PASSWORD_OK"));
+            auth_msg.sendMessage(client);
+            login = true;
+            
+        } else {
+            std::cerr<<"Wrong password!"<<std::endl;
+            auth_msg.clearContents();
+            auth_msg.addContents((const unsigned char*)"PASSWORD_ERR",strlen("PASSWORD_ERR"));
+            auth_msg.sendMessage(client);
+        }
+        auth_msg.clearContents();
+    }
+
+    //retrieving user private key
+    unsigned char pkey [2000]; 
+    int k_size = get_user_pubkey(db,username,pkey);
+
     //------------------------------------------------
     
     MessageInterface* comm_in = new AddRSA( new Message(512),this->priv_key.data());
-    while (auth) {
+    while (login) {
         comm_in->receiveMessage(client);
         if (comm_in->getStatus() != OK) {
             std::cerr << "client " << username << " has disconnected" << std::endl;

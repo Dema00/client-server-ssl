@@ -29,6 +29,7 @@ Client::Client(const char *hostname, int port, const char* uname, const char* db
     }
 
     unsigned char pkey [2000];
+    memset(pkey,0,2000);
     int k_size = get_user_privkey(db,uname,pkey);
     this->priv_key = std::vector<unsigned char>(k_size);
     priv_key.insert(priv_key.begin(),pkey,pkey+k_size);
@@ -50,6 +51,7 @@ void Client::startClient() {
 
     bool login = false;
 
+    //sending username
     Message auth(128);
     auth.addContents((const unsigned char*)uname,strlen(uname));
     auth.sendMessage(sd);
@@ -60,8 +62,37 @@ void Client::startClient() {
         close(this->sd);
         abort();
     }
+    auth.clearContents();
 
+    //receive nonce
+    auth.receiveMessage(sd);
+    unsigned char nonce[SHA256_DIGEST_LENGTH];
+    memcpy(nonce,auth.getContents(),SHA256_DIGEST_LENGTH);
 
+    //psw auth
+    char psw [128];
+    while (!login) {
+        memset(psw,0,128);
+        GetInput(psw);
+
+        unsigned char hashed_psw [SHA256_DIGEST_LENGTH];
+        sha256((unsigned char*)psw, strlen(psw), hashed_psw);
+        XOR(hashed_psw,nonce,hashed_psw,SHA256_DIGEST_LENGTH);
+        auth.clearContents();
+        auth.addContents(hashed_psw,SHA256_DIGEST_LENGTH);
+        auth.sendMessage(sd);
+        auth.clearContents();
+        auth.receiveMessage(sd);
+        if (strcmp((const char*)auth.getContents(),"PASSWORD_OK") == 0) {
+            std::cerr<<"Logged in succesfully!"<<std::endl;
+            login = true;
+            
+        } else {
+            std::cerr<<"Wrong password!"<<std::endl;
+        }
+
+    }
+        
 
     this->clientProcess();
     

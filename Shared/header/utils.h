@@ -22,3 +22,11 @@ void GetInput(char* buf) {
 	}
 	strcpy(buf, inputLine.c_str());
 }
+
+void XOR(unsigned char* inBuf1,unsigned  char* inBuf2,unsigned  char*outBuf, int size)
+{
+    while(size--)
+    {
+        *outBuf++ = *inBuf1++ ^ *inBuf2++;
+    }
+}
