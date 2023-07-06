@@ -170,12 +170,13 @@ buffer* MessageDecorator::getBuffer() {
 
 AddRSA::AddRSA(MessageInterface* message, unsigned char* raw_key): MessageDecorator(message){
     BIO* bufio = BIO_new_mem_buf((void*)raw_key, -1);
-        DEBUG_MSG(std::cout<<"RAW RSA KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key, 1700) <<std::endl;);
 
     if (memcmp(raw_key,"-----BEGIN PUB",strlen("-----BEGIN PUB"))== 0){
         this->key = PEM_read_bio_PUBKEY(bufio, NULL, 0, NULL);
+            DEBUG_MSG(std::cout<<"RAW RSA PUBLIC KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key,512 ) <<std::endl;);
     } else {
         this->key = PEM_read_bio_PrivateKey(bufio, NULL, 0, NULL);
+            DEBUG_MSG(std::cout<<"RAW RSA PRIVATE KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key,1664 ) <<std::endl;);
     }
 
     if (this->key == NULL) {

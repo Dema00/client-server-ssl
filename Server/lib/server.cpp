@@ -127,7 +127,7 @@ void Server::sessionHandler(int client) {
         close(client);
     }
 
-    //send nonce 
+    //send nonce for challenge response
 
     unsigned char nonce_buf [SHA256_DIGEST_LENGTH];
     RAND_bytes(nonce_buf, SHA256_DIGEST_LENGTH);
@@ -142,7 +142,10 @@ void Server::sessionHandler(int client) {
         unsigned char psw_hash [SHA256_DIGEST_LENGTH];
         memset(psw_hash,0,SHA256_DIGEST_LENGTH);
         get_user_psw(db,username,psw_hash);
-        XOR(psw_hash,nonce_buf,psw_hash,SHA256_DIGEST_LENGTH);
+        unsigned char hashed_psw_and_nonce [SHA256_DIGEST_LENGTH*2];
+        memmove(hashed_psw_and_nonce,psw_hash,SHA256_DIGEST_LENGTH);
+        memmove(hashed_psw_and_nonce+SHA256_DIGEST_LENGTH,psw_hash,SHA256_DIGEST_LENGTH);
+        sha256(hashed_psw_and_nonce,SHA256_DIGEST_LENGTH*2,psw_hash);
 
         if (memcmp((const char*)auth_msg.getContents(),psw_hash, SHA256_DIGEST_LENGTH) == 0) {
             std::cout<< username <<" logged in succesfully!"<<std::endl;
@@ -164,6 +167,44 @@ void Server::sessionHandler(int client) {
     //retrieving user private key
     unsigned char pkey [2000]; 
     int k_size = get_user_pubkey(db,username,pkey);
+
+    //receive nonce for ephemeral key exchange
+    //REMEMBER CHECK IF THE RAND_BYTES IS INITIALIZED CORRECTLY!!!!
+    auth_msg.receiveMessage(client);
+    memset(nonce_buf,0,SHA256_DIGEST_LENGTH);
+    memcpy(nonce_buf,auth_msg.getContents(),SHA256_DIGEST_LENGTH);
+    auth_msg.clearContents();
+    
+    //ERSA keygen
+    std::pair<EVP_PKEY*, EVP_PKEY*> keypair;
+    keypair = generate_rsa_keypair();
+
+    //ERSA pubkey serialization
+    unsigned char pubkey_raw_buf [EVP_PKEY_size(keypair.first)];
+    BIO* pubkey_bufio = BIO_new_mem_buf((const void*)pubkey_raw_buf,EVP_PKEY_size(keypair.first));
+    PEM_write_bio_PUBKEY(pubkey_bufio,keypair.first);
+
+    Message ephrsa_msg(2048);
+    ephrsa_msg.addContents((const unsigned char*)pubkey_bufio,EVP_PKEY_size(keypair.first));
+    ephrsa_msg.sendMessage(client);
+    ephrsa_msg.clearContents();
+    
+    //Load and send Server Cert
+    // copies all data into buffer
+    std::ifstream srv_cert_buf( "../Keys/server_cert.pem", std::ios::binary );
+    std::vector<unsigned char> srv_cert_vec(std::istreambuf_iterator<char>(srv_cert_buf), {});
+
+    ephrsa_msg.addContents(srv_cert_vec.data(),srv_cert_vec.size());
+    ephrsa_msg.sendMessage(client);
+    ephrsa_msg.clearContents();
+
+
+    //ERSA pubkey + nonce sign
+
+    //receive symkey
+
+    //delete pub and priv ERSA keysx
+
 
     //------------------------------------------------
     
