@@ -429,8 +429,8 @@ void AddTimestamp::finalizeReception() {
     unsigned char timestamp[18];
     memmove(timestamp,getContents(),18);
     memmove(getContentsMut(),getContents()+18,getReserved()-18);
-    getBuffer()->resize(getReserved()-18);
-    wrapped_message->getBuffer()->shrink_to_fit();
+    //getBuffer()->resize(getReserved()-18);
+    //wrapped_message->getBuffer()->shrink_to_fit();
     struct tm tm;
     strptime((char *)timestamp, "%d.%m.%Y%H:%M:%S", &tm);
     time_t t = mktime(&tm);

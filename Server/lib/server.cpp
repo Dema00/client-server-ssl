@@ -160,7 +160,7 @@ void Server::sessionHandler(int client) {
 
     //------------------------------------------------
     
-    MessageInterface* comm_in = new AddAES256( new Message(512),symkey.data(),symkey.data());
+    MessageInterface* comm_in = new AddTimestamp ( new AddAES256( new AddMAC( new Message(512), symkey.data()),symkey.data(),symkey.data()));
     while (login) {
         comm_in->receiveMessage(client);
         if (comm_in->getStatus() != OK) {

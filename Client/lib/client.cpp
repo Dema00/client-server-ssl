@@ -237,7 +237,7 @@ void Client::messagePrinter() {
 
 void Client::clientProcess(buffer symkey) {
     //std::thread printer(&Client::messagePrinter, this);
-    MessageInterface* to_send =  new AddAES256( new Message(512), symkey.data(),symkey.data());
+    MessageInterface* to_send = new AddTimestamp( new AddAES256(  new AddMAC( new Message(512),symkey.data()), symkey.data(),symkey.data()));
         DEBUG_MSG(std::cout<<"created sendMessage message" << std::endl;);
     while(1) {
         char msg [128];
