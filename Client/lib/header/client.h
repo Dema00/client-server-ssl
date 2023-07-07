@@ -31,8 +31,8 @@ class Client {
 
         const char *hostname;
 
-        buffer priv_key;
-        buffer pub_key;
+        EVP_PKEY* priv_key;
+        EVP_PKEY* pub_key;
 
         void clientProcess();
         void openConnection();
@@ -49,7 +49,9 @@ class Client {
             delete[] uname;
             delete[] hostname;
             sqlite3_close_v2(db);
-        }
+            EVP_PKEY_free(priv_key);
+            EVP_PKEY_free(pub_key);
+        };
 
 
 };

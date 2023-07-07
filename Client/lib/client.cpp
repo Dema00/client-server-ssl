@@ -31,15 +31,21 @@ Client::Client(const char *hostname, int port, const char* uname, const char* db
     unsigned char pkey [2000];
     memset(pkey,0,2000);
     int k_size = get_user_privkey(db,uname,pkey);
-    this->priv_key = std::vector<unsigned char>(k_size);
-    priv_key.insert(priv_key.begin(),pkey,pkey+k_size);
+    BIO* private_key_bio = BIO_new_mem_buf(pkey,2000);
+    this->priv_key = PEM_read_bio_PrivateKey(private_key_bio,NULL,0,NULL);
+    BIO_free(private_key_bio);
 
     std::ifstream input( "../Keys/public_server.pem", std::ios::binary );
+    std::vector<unsigned char>pubkey_vec (std::istreambuf_iterator<char>(input), {});
 
-    // copies all data into buffer
-    this->pub_key = std::vector<unsigned char>(std::istreambuf_iterator<char>(input), {});
-    this->pub_key.shrink_to_fit();
-
+    BIO* public_key_bio = BIO_new_mem_buf(pubkey_vec.data(),pubkey_vec.size());
+    this->pub_key = PEM_read_bio_PUBKEY(public_key_bio,NULL,0,NULL);
+    
+    if (this->pub_key == NULL) {
+        std::cerr << "Error while opening the public RSA key"<< std::endl;
+        exit(1);
+    }
+    BIO_free(public_key_bio);
 
 }
 
@@ -97,86 +103,6 @@ void Client::startClient() {
         }
 
     }
-
-    //send nonce for ephemeral key exchange
-    auth.clearContents();
-    memset(nonce,0,SHA256_DIGEST_LENGTH);
-    RAND_bytes(nonce, SHA256_DIGEST_LENGTH);
-    auth.addContents(nonce, SHA256_DIGEST_LENGTH);
-    auth.sendMessage(sd);
-    auth.clearContents();
-        DEBUG_MSG(std::cout<<"sen nonce" << std::endl;);
-
-    Message ephrsa(2048);
-    //receive ERSA pubkey
-    ephrsa.receiveMessage(sd);
-        DEBUG_MSG(std::cout<<"ERSA PUBKEY: \n" << 
-            BIO_dump_fp (stdout, (const char*)ephrsa.getContents(),ephrsa.getContentsSize() ) <<std::endl;);
-    BIO* eph_pub_key_bio = BIO_new_mem_buf(ephrsa.getContents(),451);
-    EVP_PKEY* ephrsa_pubkey = PEM_read_bio_PUBKEY(eph_pub_key_bio,NULL,0,NULL);
-    int pubkey_len = 451;
-    unsigned char pubkey_raw [pubkey_len];
-    memmove(pubkey_raw, ephrsa.getContents(), pubkey_len);
-    BIO_free(eph_pub_key_bio);
-    if(!ephrsa_pubkey){ std::cerr << "Error: EPHRSA PUBKEY returned NULL\n"; exit(1); }
-    ephrsa.clearContents();
-
-    //verify server cert
-    // load the CA's certificate:
-    std::string cacert_file_name="../Keys/CA_cert.pem";
-    FILE* cacert_file = fopen(cacert_file_name.c_str(), "r");
-    if(!cacert_file){ std::cerr << "Error: cannot open file '" << cacert_file_name << "' (missing?)\n"; exit(1); }
-        DEBUG_MSG(std::cout<<"RAW CA CERT: \n" << BIO_dump_fp (stdout, (const char*)cacert_file,1000 ) <<std::endl;);
-    X509* ca_cert = PEM_read_X509(cacert_file, NULL, NULL, NULL);
-    fclose(cacert_file);
-    if(!ca_cert){ std::cerr << "Error: PEM_read_X509 returned NULL\n"; exit(1); }
-
-    // load the CRL:
-    std::string crl_file_name="../Keys/CA_crl.pem";
-    FILE* crl_file = fopen(crl_file_name.c_str(), "r");
-        DEBUG_MSG(std::cout<<"RAW CA CRL: \n" << BIO_dump_fp (stdout, (const char*)crl_file,1000 ) <<std::endl;);
-    if(!crl_file){ std::cerr << "Error: cannot open file '" << crl_file_name << "' (missing?)\n"; exit(1); }
-    X509_CRL* ca_crl = PEM_read_X509_CRL(crl_file, NULL, NULL, NULL);
-    fclose(crl_file);
-    if(!ca_crl){ std::cerr << "Error: PEM_read_X509_CRL returned NULL\n"; exit(1); }
-
-    //receive srv_cert and pubkey+nonce singature
-    ephrsa.receiveMessage(sd);
-        DEBUG_MSG(std::cout<<"SRV_CERT: \n" << 
-            BIO_dump_fp (stdout, (const char*)ephrsa.getContents()+pubkey_len + 32,ephrsa.getContentsSize()-pubkey_len - 32 ) <<std::endl;);
-    BIO* srv_cert_bio = BIO_new_mem_buf(ephrsa.getContents()+256,ephrsa.getContentsSize()-256);
-    ephrsa.clearContents();
-    X509* srv_cert = PEM_read_bio_X509(srv_cert_bio,NULL,0,NULL);
-    BIO_free(srv_cert_bio);
-
-    verify_cert(ca_cert,ca_crl,srv_cert);
-
-
-    //verify ERSA pubkey+nonce singature
-    unsigned char pubkey_nonce [ pubkey_len + 32];
-    memmove(pubkey_nonce,pubkey_raw,pubkey_len);
-    memmove(pubkey_nonce + pubkey_len,nonce,32);
-
-        DEBUG_MSG(std::cout<<"UNSIGNED PKEY+NONCE: \n" << 
-            BIO_dump_fp (stdout, (const char*)pubkey_nonce,451 + 32 ) <<std::endl;);
-
-        DEBUG_MSG(std::cout<<"RECEIVED SIGN: \n" << 
-            BIO_dump_fp (stdout, (const char*)ephrsa.getContents(),256 ) <<std::endl;);
-
-    //ephrsa.receiveMessage(sd);
-    verify_signature(ephrsa.getContentsMut(),256,pubkey_nonce,pubkey_len + 32, srv_cert);
-    //ephrsa.clearContents();
-
-    //generate and send symmetric key
-    unsigned char symkey [32];
-    RAND_bytes(symkey, 32);
-
-    MessageInterface* symkey_send = new AddRSA( new Message(32), pubkey_raw);
-    symkey_send->addContents(symkey,32);
-    symkey_send->sendMessage(sd);
-    symkey_send->clearContents();
-
-    //delete pubkey
         
 
     this->clientProcess();
@@ -188,7 +114,7 @@ void Client::stopClient() {
 }
 
 void Client::sendMessage(const char* message, std::size_t msg_size) {
-    MessageInterface* to_send =  new AddRSA( new Message(512), pub_key.data());
+    MessageInterface* to_send =  new AddRSA( new Message(512), pub_key);
         DEBUG_MSG(std::cout<<"created sendMessage message" << std::endl;);
     to_send->addContents((const unsigned char*)message, strlen(message));
     to_send->sendMessage(this->sd);
@@ -196,7 +122,7 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
 }
 
 void Client::messagePrinter() {
-    MessageInterface* received = new AddRSA( new Message(512),priv_key.data());
+    MessageInterface* received = new AddRSA( new Message(512),priv_key);
         DEBUG_MSG(std::cout<<"created msgPrinter message" << std::endl;);
 
     while(1) {
@@ -213,10 +139,16 @@ void Client::messagePrinter() {
 
 void Client::clientProcess() {
     std::thread printer(&Client::messagePrinter, this);
+    MessageInterface* to_send =  new AddRSA( new Message(512), pub_key);
+        DEBUG_MSG(std::cout<<"created sendMessage message" << std::endl;);
     while(1) {
         char msg [128];
+        memset(msg,0,128);
         GetInput(msg);
-        this->sendMessage(msg, 128);
+        to_send->addContents((const unsigned char*)msg,128);
+        to_send->sendMessage(this->sd);
+        to_send->clearContents();
     }
+    delete to_send;
     printer.join();
 }

@@ -167,26 +167,43 @@ buffer* MessageDecorator::getBuffer() {
 //  %    AES RSA    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
-
-AddRSA::AddRSA(MessageInterface* message, unsigned char* raw_key): MessageDecorator(message){
-    BIO* bufio = BIO_new_mem_buf((void*)raw_key, -1);
-
-    if (memcmp(raw_key,"-----BEGIN PUB",strlen("-----BEGIN PUB"))== 0){
-        this->key = PEM_read_bio_PUBKEY(bufio, NULL, 0, NULL);
-            DEBUG_MSG(std::cout<<"RAW RSA PUBLIC KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key,512 ) <<std::endl;);
-    } else {
-        this->key = PEM_read_bio_PrivateKey(bufio, NULL, 0, NULL);
-            DEBUG_MSG(std::cout<<"RAW RSA PRIVATE KEY: \n" << BIO_dump_fp (stdout, (const char *)raw_key,1664 ) <<std::endl;);
+void print_EVP_PrivKEY(EVP_PKEY* key) {
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr) == 1) {
+        char* buffer;
+        long keySize = BIO_get_mem_data(bio, &buffer);
+        std::cout << "RSA KEY:\n" << std::string(buffer, keySize) << std::endl;
     }
+    else {
+        std::cerr << "Error while writing the RSA key" << std::endl;
+    }
+    BIO_free(bio);
+}
+
+void print_EVP_PubKEY(EVP_PKEY* key) {
+    BIO* bio = BIO_new(BIO_s_mem());
+    if (PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr) == 1) {
+        char* buffer;
+        long keySize = BIO_get_mem_data(bio, &buffer);
+        std::cout << "RSA KEY:\n" << std::string(buffer, keySize) << std::endl;
+    }
+    else {
+        std::cerr << "Error while writing the RSA key" << std::endl;
+    }
+    BIO_free(bio);
+}
+
+
+AddRSA::AddRSA(MessageInterface* message, EVP_PKEY* msg_key): MessageDecorator(message){
+
+    this->key = msg_key;
 
     if (this->key == NULL) {
         std::cerr << "Error while opening the RSA key"<< std::endl;
     }
 
-        DEBUG_MSG(std::cout<<"RSA KEY: \n" << BIO_dump_fp (stdout, (const char *)this->key, EVP_PKEY_size(key)) <<std::endl;);
-    
-    BIO_free(bufio);
-        DEBUG_MSG(std::cout<<"created EVP_PKEY" << std::endl;);
+        DEBUG_MSG(print_EVP_PrivKEY(msg_key););
+        DEBUG_MSG(print_EVP_PubKEY(msg_key););
 };
 
 void AddRSA::sendMessage(int sd) {

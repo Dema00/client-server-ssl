@@ -45,7 +45,7 @@ class Server {
         sqlite3* db;
 
         // server private key
-        buffer priv_key;
+        EVP_PKEY* priv_key;
         
         // user management
         std::map<std::string,int> connected_users;
@@ -59,13 +59,17 @@ class Server {
 
         void connectionManager();
 
-        void broadcast(MessageInterface* message);
-        void broadcast(MessageInterface* message, std::string sender);
-
         void sessionHandler(int client);
 
     public:
+        // Disable copy constructor and assignment operator
+        Server(const Server&) = delete;
+        Server& operator=(const Server&) = delete;
+
         Server(int portnum, const char* db_path);
+        ~Server() {
+            
+        };
 
         void startServer();
         void stopServer();

@@ -20,7 +20,12 @@ Server::Server(int portnum, const char* db_path): threads() {
     std::ifstream input( "../Keys/private_server.pem", std::ios::binary );
 
     // copies all data into buffer
-    this->priv_key = std::vector<unsigned char>(std::istreambuf_iterator<char>(input), {});
+    std::vector<unsigned char>privkey_vec (std::istreambuf_iterator<char>(input), {});
+
+    BIO* private_key_bio = BIO_new_mem_buf(privkey_vec.data(),privkey_vec.size());
+    this->priv_key = PEM_read_bio_PrivateKey(private_key_bio,NULL,0,NULL);
+    BIO_free(private_key_bio);
+
     this->status = RUN;
     
     std::cout<< "New server created with address: localhost:" << portnum <<std::endl;
@@ -39,14 +44,15 @@ void Server::startServer() {
 
 void Server::stopServer() {
 
-    for (auto & thread : this->threads) {
-        thread.detach();
-        thread.~thread();
+    for (auto& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
     }
 
-    if (close(this->sd) != 0) {
-        std::cerr << "ERROR WHILE CLOSING SOCKET " << this->sd << std::endl;
-    };
+    if (close(sd) != 0) {
+        std::cerr << "ERROR WHILE CLOSING SOCKET " << sd << std::endl;
+    }
 };
 
 void Server::openListener(){
@@ -75,20 +81,6 @@ void Server::serverControlPanel() {
         }
     }
 }
-
-void Server::broadcast(MessageInterface* message) {
-    for (auto & user : this->connected_users) {
-            message->sendMessage(user.second);
-        }
-}  
-void Server::broadcast(MessageInterface* message, std::string sender) {
-    for (auto & user : this->connected_users) {
-            if (user.first != sender) {
-                message->sendMessage(user.second);
-            }
-        }
-}  
-
 void Server::connectionManager() {
     while(1) {
         if (listen(this->sd, 5) != 0) {
@@ -164,86 +156,9 @@ void Server::sessionHandler(int client) {
         auth_msg.clearContents();
     }
 
-    //retrieving user public key
-    unsigned char pkey [2000]; 
-    int k_size = get_user_pubkey(db,username,pkey);
-
-    //receive nonce for ephemeral key exchange
-    //REMEMBER CHECK IF THE RAND_BYTES IS INITIALIZED CORRECTLY!!!!
-    auth_msg.receiveMessage(client);
-    memset(nonce_buf,0,SHA256_DIGEST_LENGTH);
-    memcpy(nonce_buf,auth_msg.getContents(),SHA256_DIGEST_LENGTH);
-    auth_msg.clearContents();
-    
-    //ERSA keygen
-    std::pair<EVP_PKEY*, EVP_PKEY*> keypair;
-    keypair = generate_rsa_keypair();
-
-    //ERSA pubkey serialization---------
-    BIO* pubkey_bufio = BIO_new(BIO_s_mem());
-    PEM_write_bio_PUBKEY(pubkey_bufio,keypair.first);
-    int pubkey_len = BIO_get_mem_data(pubkey_bufio,NULL);
-    unsigned char serialized_pubkey [pubkey_len];
-    BIO_read(pubkey_bufio, serialized_pubkey, pubkey_len);
-        DEBUG_MSG(std::cout<<"RAW PKEY: \n" << 
-            BIO_dump_fp (stdout, (const char*)serialized_pubkey,pubkey_len ) <<std::endl;);
-        DEBUG_MSG(std::cout << "PUBKEY LEN " << pubkey_len << std::endl;);
-    BIO_free(pubkey_bufio);
-    //ERSA pubkey serialization END-----
-
-    //ERSA pubkey send
-    Message ephrsa_msg(2048);
-    ephrsa_msg.addContents((const unsigned char*)serialized_pubkey,pubkey_len);
-    ephrsa_msg.sendMessage(client);
-    ephrsa_msg.clearContents();
-
-    //Load Server Cert
-    // copies all data into buffer
-    std::ifstream srv_cert_buf( "../Keys/server_cert.pem", std::ios::binary );
-    std::vector<unsigned char> srv_cert_vec(std::istreambuf_iterator<char>(srv_cert_buf), {});
-
-
-    //ERSA pubkey + nonce sign
-
-    //create pubkey+nonce buffer
-    unsigned char pubkey_nonce [pubkey_len + SHA256_DIGEST_LENGTH];
-    memmove(pubkey_nonce,serialized_pubkey,pubkey_len);
-    memmove(pubkey_nonce + pubkey_len,nonce_buf,SHA256_DIGEST_LENGTH);
-
-    int pubkey_nonce_len = pubkey_len + SHA256_DIGEST_LENGTH;
-    DEBUG_MSG(std::cout<<"RAW PKEY + NONCE: \n" << 
-            BIO_dump_fp (stdout, (const char*)pubkey_nonce,pubkey_nonce_len ) <<std::endl;);
-
-    //sign the pubkey+nonce buffer
-    unsigned char signed_pubkey_nonce [pubkey_nonce_len];
-    BIO* srv_priv_key = BIO_new_mem_buf(this->priv_key.data(),this->priv_key.size());
-    int sign_size = sign(pubkey_nonce,pubkey_nonce_len,PEM_read_bio_PrivateKey(srv_priv_key,NULL,0,NULL),signed_pubkey_nonce);
-        DEBUG_MSG(std::cout<< sign_size <<"TRUE SIGNED PKEY + NONCE: \n" << 
-            BIO_dump_fp (stdout, (const char*)signed_pubkey_nonce,sign_size ) <<std::endl;);
-    BIO_free(srv_priv_key);
-
-    //sending pubkey signed and server cert
-
-    ephrsa_msg.clearContents();
-    ephrsa_msg.addContents(signed_pubkey_nonce,sign_size);
-    ephrsa_msg.addContents(srv_cert_vec.data(),srv_cert_vec.size());
-        DEBUG_MSG(std::cout<<"SIGNED PKEY + NONCE: \n" << 
-            BIO_dump_fp (stdout, (const char*)ephrsa_msg.getContents(),pubkey_nonce_len ) <<std::endl;);
-    ephrsa_msg.sendMessage(client);
-    ephrsa_msg.clearContents(); 
-
-    //receive symkey
-
-    MessageInterface* receive_symkey = new AddRSA ( new Message(32), serialized_pubkey);
-
-    receive_symkey->receiveMessage(client);
-
-    //delete pub and priv ERSA keysx
-
-
     //------------------------------------------------
     
-    MessageInterface* comm_in = new AddRSA( new Message(512),this->priv_key.data());
+    MessageInterface* comm_in = new AddRSA( new Message(512),this->priv_key);
     while (login) {
         comm_in->receiveMessage(client);
         if (comm_in->getStatus() != OK) {
