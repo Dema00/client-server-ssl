@@ -34,8 +34,10 @@ class Client {
         EVP_PKEY* priv_key;
         EVP_PKEY* pub_key;
 
-        void clientProcess();
+        void clientProcess(buffer symkey);
         void openConnection();
+        void clientLogin();
+        buffer symKeyEstablishment();
 
         void sendMessage(const char *message, std::size_t msg_size);
         

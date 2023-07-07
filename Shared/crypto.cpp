@@ -116,17 +116,27 @@ int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 		&encrypted_key_len, iv, pub_key, 1))
 		handleErrors();
 
-    if(1 != EVP_SealUpdate(ctx, ciphertext, &len, plaintext, plaintext_len+1))
+    // Use a separate buffer for ciphertext
+    unsigned char *temp_ciphertext = (unsigned char *)malloc(plaintext_len + EVP_MAX_BLOCK_LENGTH);
+    if (temp_ciphertext == NULL) {
+        handleErrors();
+    }
+
+    if(1 != EVP_SealUpdate(ctx, temp_ciphertext, &len, plaintext, plaintext_len+1))
 		handleErrors();
 	ciphertext_len = len;
 
-    if(1 != EVP_SealFinal(ctx, ciphertext + len, &len)) handleErrors();
+    if(1 != EVP_SealFinal(ctx, temp_ciphertext + len, &len)) handleErrors();
 	ciphertext_len += len;
 
-	/* Clean up */
+    // Copy the ciphertext to the output buffer
+    std::memcpy(ciphertext, temp_ciphertext, ciphertext_len);
+
+    // Clean up
+    free(temp_ciphertext);
 	EVP_CIPHER_CTX_free(ctx);
 
-	return ciphertext_len;  
+	return ciphertext_len;    
 }
 
 int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_len,

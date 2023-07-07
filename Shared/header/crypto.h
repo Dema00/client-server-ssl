@@ -23,6 +23,7 @@
  
 
 #include <iostream>
+#include <cstring>
 
 void handleErrors();
 

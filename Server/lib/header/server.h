@@ -58,6 +58,7 @@ class Server {
         void serverControlPanel();
 
         void connectionManager();
+        buffer symkeyExchange(int client);
 
         void sessionHandler(int client);
 

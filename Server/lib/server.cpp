@@ -156,9 +156,11 @@ void Server::sessionHandler(int client) {
         auth_msg.clearContents();
     }
 
+    buffer symkey = this->symkeyExchange(client);
+
     //------------------------------------------------
     
-    MessageInterface* comm_in = new AddRSA( new Message(512),this->priv_key);
+    MessageInterface* comm_in = new AddAES256( new Message(512),symkey.data(),symkey.data());
     while (login) {
         comm_in->receiveMessage(client);
         if (comm_in->getStatus() != OK) {
@@ -176,4 +178,85 @@ void Server::sessionHandler(int client) {
     }
     delete comm_in;
     return;
+};
+
+buffer Server::symkeyExchange(int client) {
+    Message ephrsa_msg(2048);
+    //receive nonce for ephemeral key exchange
+    //REMEMBER CHECK IF THE RAND_BYTES IS INITIALIZED CORRECTLY!!!!
+    unsigned char nonce_buf [SHA256_DIGEST_LENGTH];
+    ephrsa_msg.receiveMessage(client);
+    memset(nonce_buf,0,SHA256_DIGEST_LENGTH);
+    memcpy(nonce_buf,ephrsa_msg.getContents(),SHA256_DIGEST_LENGTH);
+    ephrsa_msg.clearContents();
+    
+    //ERSA keygen
+    std::pair<EVP_PKEY*, EVP_PKEY*> keypair;
+    keypair = generate_rsa_keypair();
+
+    //ERSA pubkey serialization---------
+    BIO* pubkey_bufio = BIO_new(BIO_s_mem());
+    PEM_write_bio_PUBKEY(pubkey_bufio,keypair.first);
+    int pubkey_len = BIO_get_mem_data(pubkey_bufio,NULL);
+    unsigned char serialized_pubkey [pubkey_len];
+    BIO_read(pubkey_bufio, serialized_pubkey, pubkey_len);
+        DEBUG_MSG(std::cout<<"RAW PKEY: \n" << 
+            BIO_dump_fp (stdout, (const char*)serialized_pubkey,pubkey_len ) <<std::endl;);
+        DEBUG_MSG(std::cout << "PUBKEY LEN " << pubkey_len << std::endl;);
+    BIO_free(pubkey_bufio);
+    //ERSA pubkey serialization END-----
+
+    //ERSA pubkey send
+    ephrsa_msg.addContents((const unsigned char*)serialized_pubkey,pubkey_len);
+    ephrsa_msg.sendMessage(client);
+    ephrsa_msg.clearContents();
+
+    //Load Server Cert
+    // copies all data into buffer
+    std::ifstream srv_cert_buf( "../Keys/server_cert.pem", std::ios::binary );
+    std::vector<unsigned char> srv_cert_vec(std::istreambuf_iterator<char>(srv_cert_buf), {});
+
+
+    //ERSA pubkey + nonce sign
+
+    //create pubkey+nonce buffer
+    unsigned char pubkey_nonce [pubkey_len + SHA256_DIGEST_LENGTH];
+    memmove(pubkey_nonce,serialized_pubkey,pubkey_len);
+    memmove(pubkey_nonce + pubkey_len,nonce_buf,SHA256_DIGEST_LENGTH);
+
+    int pubkey_nonce_len = pubkey_len + SHA256_DIGEST_LENGTH;
+    DEBUG_MSG(std::cout<<"RAW PKEY + NONCE: \n" << 
+            BIO_dump_fp (stdout, (const char*)pubkey_nonce,pubkey_nonce_len ) <<std::endl;);
+
+    //sign the pubkey+nonce buffer
+    unsigned char signed_pubkey_nonce [pubkey_nonce_len];
+    int sign_size = sign(pubkey_nonce,pubkey_nonce_len,this->priv_key,signed_pubkey_nonce);
+        DEBUG_MSG(std::cout<< sign_size <<"TRUE SIGNED PKEY + NONCE: \n" << 
+            BIO_dump_fp (stdout, (const char*)signed_pubkey_nonce,sign_size ) <<std::endl;);
+
+    //sending pubkey signed and server cert
+
+    ephrsa_msg.clearContents();
+    ephrsa_msg.addContents(signed_pubkey_nonce,sign_size);
+    ephrsa_msg.addContents(srv_cert_vec.data(),srv_cert_vec.size());
+        DEBUG_MSG(std::cout<<"SIGNED PKEY + NONCE: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa_msg.getContents(),pubkey_nonce_len ) <<std::endl;);
+    ephrsa_msg.sendMessage(client);
+    ephrsa_msg.clearContents(); 
+
+    //receive symkey
+
+    MessageInterface* receive_symkey = new AddRSA ( new Message(512), keypair.second);
+
+    receive_symkey->receiveMessage(client);
+
+    std::vector<unsigned char>symkey;
+    symkey.insert(symkey.begin(),receive_symkey->getContents(),receive_symkey->getContents()+32);
+
+    //delete pub and priv ERSA keysx
+    memset(serialized_pubkey,0,pubkey_len);
+    EVP_PKEY_free(keypair.first);
+    EVP_PKEY_free(keypair.second);
+    return symkey;
+
 };

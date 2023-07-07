@@ -173,8 +173,4 @@ class AddRSA: public MessageDecorator {
         void receiveMessage(int sd) override;
         void finalizeReception() override;
         void decryptMessage();
-
-        ~AddRSA() {
-            EVP_PKEY_free(key);
-        }
 };

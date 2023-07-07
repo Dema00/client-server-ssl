@@ -55,7 +55,109 @@ void Client::startClient() {
     //assolutamente inutile
     std::string welcomeFile = "lib/ascii_art.txt";
 	std::cout<<ReadFile(welcomeFile)<< std::endl;
+    
+    this->clientLogin();
 
+    buffer symkey = this->symKeyEstablishment();
+
+    this->clientProcess(symkey);
+    
+}
+
+buffer Client::symKeyEstablishment() {
+    
+    Message ephrsa(2048);
+
+    //send nonce for ephemeral key exchange
+    ephrsa.clearContents();
+    unsigned char nonce[SHA256_DIGEST_LENGTH];
+    memset(nonce,0,SHA256_DIGEST_LENGTH);
+    RAND_bytes(nonce, SHA256_DIGEST_LENGTH);
+    ephrsa.addContents(nonce, SHA256_DIGEST_LENGTH);
+    ephrsa.sendMessage(sd);
+    ephrsa.clearContents();
+
+    //receive ERSA pubkey
+    ephrsa.receiveMessage(sd);
+
+    BIO* eph_pub_key_bio = BIO_new_mem_buf(ephrsa.getContents(),451);
+    EVP_PKEY* ephrsa_pubkey = PEM_read_bio_PUBKEY(eph_pub_key_bio,NULL,0,NULL);
+    BIO_free(eph_pub_key_bio);
+    int eph_pubkey_len = 451;
+
+    unsigned char eph_pubkey_raw [eph_pubkey_len];
+    memmove(eph_pubkey_raw, ephrsa.getContents(), eph_pubkey_len);
+    if(!ephrsa_pubkey){ std::cerr << "Error: EPHRSA PUBKEY returned NULL\n"; exit(1); }
+    ephrsa.clearContents();
+
+    //-----------------------CERTIFICATE VERIFICATION-------------------------------------
+    //verify server cert
+    // load the CA's certificate:
+    std::string cacert_file_name="../Keys/CA_cert.pem";
+    FILE* cacert_file = fopen(cacert_file_name.c_str(), "r");
+    if(!cacert_file){ std::cerr << "Error: cannot open file '" << cacert_file_name << "' (missing?)\n"; exit(1); }
+        DEBUG_MSG(std::cout<<"RAW CA CERT: \n" << BIO_dump_fp (stdout, (const char*)cacert_file,1000 ) <<std::endl;);
+    X509* ca_cert = PEM_read_X509(cacert_file, NULL, NULL, NULL);
+    fclose(cacert_file);
+    if(!ca_cert){ std::cerr << "Error: PEM_read_X509 returned NULL\n"; exit(1); }
+
+    // load the CRL:
+    std::string crl_file_name="../Keys/CA_crl.pem";
+    FILE* crl_file = fopen(crl_file_name.c_str(), "r");
+        DEBUG_MSG(std::cout<<"RAW CA CRL: \n" << BIO_dump_fp (stdout, (const char*)crl_file,1000 ) <<std::endl;);
+    if(!crl_file){ std::cerr << "Error: cannot open file '" << crl_file_name << "' (missing?)\n"; exit(1); }
+    X509_CRL* ca_crl = PEM_read_X509_CRL(crl_file, NULL, NULL, NULL);
+    fclose(crl_file);
+    if(!ca_crl){ std::cerr << "Error: PEM_read_X509_CRL returned NULL\n"; exit(1); }
+
+    //receive srv_cert and pubkey+nonce singature
+    ephrsa.receiveMessage(sd);
+        DEBUG_MSG(std::cout<<"SRV_CERT: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa.getContents()+eph_pubkey_len + 32,ephrsa.getContentsSize()-eph_pubkey_len - 32 ) <<std::endl;);
+    BIO* srv_cert_bio = BIO_new_mem_buf(ephrsa.getContents()+256,ephrsa.getContentsSize()-256);
+    ephrsa.clearContents();
+    X509* srv_cert = PEM_read_bio_X509(srv_cert_bio,NULL,0,NULL);
+    BIO_free(srv_cert_bio);
+
+    verify_cert(ca_cert,ca_crl,srv_cert);
+
+    //verify ERSA pubkey+nonce singature
+    unsigned char pubkey_nonce [ eph_pubkey_len + 32];
+    memmove(pubkey_nonce,eph_pubkey_raw,eph_pubkey_len);
+    memmove(pubkey_nonce + eph_pubkey_len,nonce,32);
+
+        DEBUG_MSG(std::cout<<"UNSIGNED PKEY+NONCE: \n" << 
+            BIO_dump_fp (stdout, (const char*)pubkey_nonce,451 + 32 ) <<std::endl;);
+
+        DEBUG_MSG(std::cout<<"RECEIVED SIGN: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa.getContents(),256 ) <<std::endl;);
+
+    verify_signature(ephrsa.getContentsMut(),256,pubkey_nonce,eph_pubkey_len + 32, srv_cert);
+    ephrsa.clearContents();
+
+    //generate and send symmetric key
+    unsigned char symkey [512];
+    RAND_bytes(symkey, 32);
+
+    MessageInterface* symkey_send = new AddRSA( new Message(32), ephrsa_pubkey);
+    symkey_send->addContents(symkey,32);
+    symkey_send->sendMessage(sd);
+    symkey_send->clearContents();
+    delete symkey_send;
+
+    //delete pubkey
+    memset(eph_pubkey_raw,0,eph_pubkey_len);
+    EVP_PKEY_free(ephrsa_pubkey);
+
+    std::vector<unsigned char>symkey_buf;
+    symkey_buf.insert(symkey_buf.begin(),symkey,symkey+32);
+
+    return symkey_buf;
+
+
+}
+
+void Client::clientLogin() {
     bool login = false;
 
     //sending username
@@ -103,10 +205,6 @@ void Client::startClient() {
         }
 
     }
-        
-
-    this->clientProcess();
-    
 }
 
 void Client::stopClient() {
@@ -137,9 +235,9 @@ void Client::messagePrinter() {
     delete received;
 }
 
-void Client::clientProcess() {
-    std::thread printer(&Client::messagePrinter, this);
-    MessageInterface* to_send =  new AddRSA( new Message(512), pub_key);
+void Client::clientProcess(buffer symkey) {
+    //std::thread printer(&Client::messagePrinter, this);
+    MessageInterface* to_send =  new AddAES256( new Message(512), symkey.data(),symkey.data());
         DEBUG_MSG(std::cout<<"created sendMessage message" << std::endl;);
     while(1) {
         char msg [128];
@@ -150,5 +248,5 @@ void Client::clientProcess() {
         to_send->clearContents();
     }
     delete to_send;
-    printer.join();
+    //printer.join();
 }
