@@ -49,6 +49,6 @@ void verify_cert(X509* ca_cert, X509_CRL* crl, X509* cert);
 void verify_signature(unsigned char* sig, int sig_size,
     unsigned char* to_verify, int to_verify_size, X509* cert);
 
-void sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsigned char* signed_msg);
+int sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsigned char* signed_msg);
 
 void sha256(const unsigned char* input, int len, unsigned char* out);

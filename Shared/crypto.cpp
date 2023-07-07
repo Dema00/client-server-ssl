@@ -280,7 +280,7 @@ void verify_signature(unsigned char* sig, int sig_size,
     //X509_CRL_free(crl); // already deallocated by X509_STORE_free()
 }
 
-void sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsigned char* signed_msg){
+int sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsigned char* signed_msg){
     int ret;
 
     // declare some useful variables:
@@ -307,6 +307,8 @@ void sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsig
 
     // delete the digest and the private key from memory:
     EVP_MD_CTX_free(md_ctx);
+
+    return sgnt_size;
 
 }
 

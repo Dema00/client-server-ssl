@@ -73,6 +73,7 @@ void Client::startClient() {
     //psw auth
     char psw [128];
     while (!login) {
+        std::cout<<"Insert the password for " << uname << ":" <<std::endl;
         memset(psw,0,128);
         GetInput(psw);
 
@@ -109,9 +110,15 @@ void Client::startClient() {
     Message ephrsa(2048);
     //receive ERSA pubkey
     ephrsa.receiveMessage(sd);
-    BIO* eph_pub_key_bio = BIO_new_mem_buf(ephrsa.getContents(),ephrsa.getContentsSize());
-    EVP_PKEY* ehprsa_pubkey = PEM_read_bio_PUBKEY(eph_pub_key_bio,NULL,0,NULL);
+        DEBUG_MSG(std::cout<<"ERSA PUBKEY: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa.getContents(),ephrsa.getContentsSize() ) <<std::endl;);
+    BIO* eph_pub_key_bio = BIO_new_mem_buf(ephrsa.getContents(),451);
+    EVP_PKEY* ephrsa_pubkey = PEM_read_bio_PUBKEY(eph_pub_key_bio,NULL,0,NULL);
+    int pubkey_len = 451;
+    unsigned char pubkey_raw [pubkey_len];
+    memmove(pubkey_raw, ephrsa.getContents(), pubkey_len);
     BIO_free(eph_pub_key_bio);
+    if(!ephrsa_pubkey){ std::cerr << "Error: EPHRSA PUBKEY returned NULL\n"; exit(1); }
     ephrsa.clearContents();
 
     //verify server cert
@@ -133,19 +140,41 @@ void Client::startClient() {
     fclose(crl_file);
     if(!ca_crl){ std::cerr << "Error: PEM_read_X509_CRL returned NULL\n"; exit(1); }
 
-    //receive srv_cert
+    //receive srv_cert and pubkey+nonce singature
     ephrsa.receiveMessage(sd);
-    BIO* srv_cert_bio = BIO_new_mem_buf(ephrsa.getContents(),ephrsa.getContentsSize());
+        DEBUG_MSG(std::cout<<"SRV_CERT: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa.getContents()+pubkey_len + 32,ephrsa.getContentsSize()-pubkey_len - 32 ) <<std::endl;);
+    BIO* srv_cert_bio = BIO_new_mem_buf(ephrsa.getContents()+256,ephrsa.getContentsSize()-256);
+    ephrsa.clearContents();
     X509* srv_cert = PEM_read_bio_X509(srv_cert_bio,NULL,0,NULL);
     BIO_free(srv_cert_bio);
-    ephrsa.clearContents();
 
     verify_cert(ca_cert,ca_crl,srv_cert);
 
 
     //verify ERSA pubkey+nonce singature
+    unsigned char pubkey_nonce [ pubkey_len + 32];
+    memmove(pubkey_nonce,pubkey_raw,pubkey_len);
+    memmove(pubkey_nonce + pubkey_len,nonce,32);
+
+        DEBUG_MSG(std::cout<<"UNSIGNED PKEY+NONCE: \n" << 
+            BIO_dump_fp (stdout, (const char*)pubkey_nonce,451 + 32 ) <<std::endl;);
+
+        DEBUG_MSG(std::cout<<"RECEIVED SIGN: \n" << 
+            BIO_dump_fp (stdout, (const char*)ephrsa.getContents(),256 ) <<std::endl;);
+
+    //ephrsa.receiveMessage(sd);
+    verify_signature(ephrsa.getContentsMut(),256,pubkey_nonce,pubkey_len + 32, srv_cert);
+    //ephrsa.clearContents();
 
     //generate and send symmetric key
+    unsigned char symkey [32];
+    RAND_bytes(symkey, 32);
+
+    MessageInterface* symkey_send = new AddRSA( new Message(32), pubkey_raw);
+    symkey_send->addContents(symkey,32);
+    symkey_send->sendMessage(sd);
+    symkey_send->clearContents();
 
     //delete pubkey
         
