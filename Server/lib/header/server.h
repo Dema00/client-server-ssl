@@ -23,6 +23,8 @@
 
 #include <iostream>
 #include <fstream>
+#include <string>
+
 
 enum serverStatus{
     RUN,
@@ -59,6 +61,7 @@ class Server {
 
         void connectionManager();
         buffer symkeyExchange(int client);
+        void operationManager(MessageInterface* message,std::string username,int client);
 
         void sessionHandler(int client);
 

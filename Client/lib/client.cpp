@@ -31,7 +31,7 @@ Client::Client(const char *hostname, int port, const char* uname, const char* db
     unsigned char pkey [2000];
     memset(pkey,0,2000);
     int k_size = get_user_privkey(db,uname,pkey);
-    BIO* private_key_bio = BIO_new_mem_buf(pkey,2000);
+    BIO* private_key_bio = BIO_new_mem_buf(pkey,k_size);
     this->priv_key = PEM_read_bio_PrivateKey(private_key_bio,NULL,0,NULL);
     BIO_free(private_key_bio);
 
@@ -219,8 +219,8 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
     delete to_send;
 }
 
-void Client::messagePrinter() {
-    MessageInterface* received = new AddRSA( new Message(512),priv_key);
+void Client::messagePrinter(buffer symkey) {
+    MessageInterface* received = new AddTimestamp( new AddAES256(  new AddMAC( new Message(512),symkey.data()), symkey.data(),symkey.data()));
         DEBUG_MSG(std::cout<<"created msgPrinter message" << std::endl;);
 
     while(1) {
@@ -236,7 +236,7 @@ void Client::messagePrinter() {
 }
 
 void Client::clientProcess(buffer symkey) {
-    //std::thread printer(&Client::messagePrinter, this);
+    std::thread printer(&Client::messagePrinter, this, symkey);
     MessageInterface* to_send = new AddTimestamp( new AddAES256(  new AddMAC( new Message(512),symkey.data()), symkey.data(),symkey.data()));
         DEBUG_MSG(std::cout<<"created sendMessage message" << std::endl;);
     while(1) {

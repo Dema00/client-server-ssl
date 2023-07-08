@@ -41,7 +41,7 @@ class Client {
 
         void sendMessage(const char *message, std::size_t msg_size);
         
-        void messagePrinter();
+        void messagePrinter(buffer symkey);
 
     public:
         Client(const char *hostname, int port, const char* uname, const char* db_path);

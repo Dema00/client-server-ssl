@@ -345,10 +345,10 @@ void AddAES256::decryptMessage() {
 
     this->wrapped_message->clearContents();
     this->wrapped_message->addContents(plaintext, len);
-        DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+        DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getReserved()) <<std::endl;);
     this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
     //wrapped_message->getBuffer()->shrink_to_fit();
-    //memset(this->wrapped_message->getBuffer()->end().base(),0, strlen((char*)getContents())-getContentsSize() );
+    memset(this->wrapped_message->getBuffer()->end().base(),0, getReserved()-getContentsSize() );
         DEBUG_MSG(std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
 }
 

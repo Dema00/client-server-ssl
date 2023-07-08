@@ -170,7 +170,7 @@ int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_le
 
 std::pair<EVP_PKEY*, EVP_PKEY*> generate_rsa_keypair(){
     auto bne = BN_new();         //refer to https://www.openssl.org/docs/man1.0.2/man3/bn.html
-    auto ret = BN_set_word(bne, RSA_F4);
+    BN_set_word(bne, RSA_F4);
 
     int bits = 2048;
     RSA *r = RSA_new();
