@@ -412,7 +412,7 @@ void AddTimestamp::sendMessage(int sd) {
         DEBUG_MSG(std::cout << "added timestamp " << std::endl;);
     std::time_t now = std::time(0);
     std::tm * ptm = std::localtime(&now);
-    char buffer[18];
+    char buffer[19];
     // Format: Mo, 15.06.2009 20:20:00
     std::strftime(buffer, 19, "%d.%m.%Y%H:%M:%S", ptm);  
     wrapped_message->addContentsBeginning((unsigned char*)buffer,18);
@@ -429,12 +429,17 @@ void AddTimestamp::finalizeReception() {
     unsigned char timestamp[18];
     memmove(timestamp,getContents(),18);
     memmove(getContentsMut(),getContents()+18,getReserved()-18);
+    DEBUG_MSG(std::cout<<"msg in time: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     //getBuffer()->resize(getReserved()-18);
+    //DEBUG_MSG(std::cout<<getReserved()<< " reserved after timestamp " << std::endl;);
     //wrapped_message->getBuffer()->shrink_to_fit();
-    struct tm tm;
-    strptime((char *)timestamp, "%d.%m.%Y%H:%M:%S", &tm);
-    time_t t = mktime(&tm);
-    if (t != std::time(0)) {
+
+    std::time_t now = std::time(0);
+    std::tm * ptm = std::localtime(&now);
+    char local_timestamp[18];
+    // Format: Mo, 15.06.2009 20:20:00
+    std::strftime(local_timestamp, 19, "%d.%m.%Y%H:%M:%S", ptm);  
+    if (memcmp(timestamp,(unsigned char*)local_timestamp,18) != 0) {
         setStatus(WRONG_TIMESTAMP);
     }
 }

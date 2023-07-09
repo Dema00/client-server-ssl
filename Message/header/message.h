@@ -12,6 +12,8 @@
 #include "../../Shared/header/crypto.h"
 
 #include <ctime>
+#include <sstream>
+#include <iomanip>
 
 #include <stdlib.h>
 

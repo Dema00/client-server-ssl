@@ -10,6 +10,9 @@
 *.dll
 *.dylib
 
+#valgrind reports
+*.rpt
+
 # Visual code 
 .vscode/*
 

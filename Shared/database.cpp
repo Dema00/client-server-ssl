@@ -124,7 +124,7 @@ std::vector<std::string> get_history(sqlite3* db, std::string username, int t_nu
     std::vector<std::string> vec;
 
     int id = get_user_id(db,username);
-    char* query = sqlite3_mprintf("SELECT recipientID, amount, timestamp FROM transfers WHERE senderID = %i\0",id);
+    char* query = sqlite3_mprintf("SELECT recipientID, amount, timestamp FROM transfers WHERE senderID = %i ORDER BY transferID DESC LIMIT %i\0",id,t_num);
         DEBUG_MSG(std::cout << query << std::endl;);
     sqlite3_prepare_v2(db,query, strlen(query), &stmt, NULL);
     sqlite3_free(query);
