@@ -95,6 +95,11 @@ void Server::serverControlPanel() {
             killer.sendMessage(sd);
             manager.join();
         }
+        if (strcmp(msg, "balance") == 0) {
+            std::cout << "insert user:" << std::endl;
+            GetInput(msg);
+            std::cout << msg << "'s balance is: " << get_user_balance(db,std::string(msg)) << std::endl; 
+        }
     }
 }
 

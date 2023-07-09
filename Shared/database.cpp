@@ -207,10 +207,10 @@ void insertTransaction(sqlite3* db, const std::string& senderUsername, const std
         return;
     }
 
-    char timestamp[18];
+    char timestamp[20];
     std::time_t now = std::time(0);
     std::tm* ptm = std::localtime(&now);
-    std::strftime(timestamp, 19, "%d.%m.%Y%H:%M:%S", ptm);
+    std::strftime(timestamp, 20, "%d.%m.%Y %H:%M:%S", ptm);
     std::string timestampStr(timestamp);
 
     sqlite3_stmt* stmt;
