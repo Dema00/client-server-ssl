@@ -167,19 +167,6 @@ buffer* MessageDecorator::getBuffer() {
 //  %    AES RSA    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
-void print_EVP_PrivKEY(EVP_PKEY* key) {
-    BIO* bio = BIO_new(BIO_s_mem());
-    if (PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr) == 1) {
-        char* buffer;
-        long keySize = BIO_get_mem_data(bio, &buffer);
-        std::cout << "RSA KEY:\n" << std::string(buffer, keySize) << std::endl;
-    }
-    else {
-        std::cerr << "Error while writing the RSA key" << std::endl;
-    }
-    BIO_free(bio);
-}
-
 void print_EVP_PubKEY(EVP_PKEY* key) {
     BIO* bio = BIO_new(BIO_s_mem());
     if (PEM_write_bio_PrivateKey(bio, key, nullptr, nullptr, 0, nullptr, nullptr) == 1) {

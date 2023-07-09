@@ -232,4 +232,64 @@ void processTransaction(sqlite3* db, const std::string& senderUsername, const st
     insertTransaction(db, senderUsername, recipientUsername, amount);
 }
 
+void decryptSQLite3Database(const std::string& encryptedFilePath, const std::string& decryptedFilePath,
+                            unsigned char* decryptionKey, unsigned char* iv) {
+    // Open the encrypted database file
+    std::ifstream encryptedFile(encryptedFilePath, std::ios::binary);
+    if (!encryptedFile.is_open()) {
+        std::cerr << "Failed to open the encrypted database file." << std::endl;
+        return;
+    }
+
+    // Read the encrypted content into memory
+    encryptedFile.seekg(0, std::ios::end);
+    std::streampos encryptedSize = encryptedFile.tellg();
+    encryptedFile.seekg(0, std::ios::beg);
+    std::vector<unsigned char> encryptedContent(encryptedSize);
+    encryptedFile.read(reinterpret_cast<char*>(encryptedContent.data()), encryptedSize);
+    encryptedFile.close();
+
+    unsigned char decryptedDb [encryptedContent.size()];
+
+    int size = decrypt(encryptedContent.data(),encryptedContent.size(),decryptionKey, iv,decryptedDb);
+    // Write the decrypted content to a new file
+    std::ofstream decryptedFile(decryptedFilePath, std::ios::binary);
+    if (!decryptedFile.is_open()) {
+        std::cerr << "Failed to create the decrypted database file." << std::endl;
+        return;
+    }
+    decryptedFile.write((char *)decryptedDb, size);
+    decryptedFile.close();
+}
+
+void encryptSQLite3Database(const std::string& originalFilePath, const std::string& encryptedFilePath,
+                            unsigned char* encryptionKey, unsigned char* iv) {
+    // Open the original SQLite3 database file
+    std::ifstream originalFile(originalFilePath, std::ios::binary);
+    if (!originalFile.is_open()) {
+        std::cerr << "Failed to open the original database file." << std::endl;
+        return;
+    }
+
+    // Read the original content into memory
+    originalFile.seekg(0, std::ios::end);
+    std::streampos originalSize = originalFile.tellg();
+    originalFile.seekg(0, std::ios::beg);
+    std::vector<unsigned char> originalContent(originalSize);
+    originalFile.read(reinterpret_cast<char*>(originalContent.data()), originalSize);
+    originalFile.close();
+
+    unsigned char encryptedDb [originalContent.size()+32];
+
+    int size = decrypt(originalContent.data(),originalContent.size(),encryptionKey, iv,encryptedDb);
+
+    // Write the encrypted content to a new file
+    std::ofstream encryptedFile(encryptedFilePath, std::ios::binary);
+    if (!encryptedFile.is_open()) {
+        std::cerr << "Failed to create the encrypted database file." << std::endl;
+        return;
+    }
+    encryptedFile.write((char*)encryptedDb, size);
+    encryptedFile.close();
+}
 

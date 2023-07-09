@@ -14,6 +14,10 @@
 #include <string.h>
 #include <string>
 #include <iostream>
+#include <fstream>
+
+#include "crypto.h"
+
 
 #include <openssl/err.h>
 #include <ctime>
@@ -35,5 +39,10 @@ std::vector<std::string> get_history(sqlite3* db, std::string username, int t_nu
 
 void processTransaction(sqlite3* db, const std::string& senderUsername, const std::string& recipientUsername, double amount);
 
-
 int check_user(sqlite3* db, std::string username);
+
+void decryptSQLite3Database(const std::string& encryptedFilePath, const std::string& decryptedFilePath,
+                            unsigned char* decryptionKey, unsigned char* iv);
+
+void encryptSQLite3Database(const std::string& originalFilePath, const std::string& encryptedFilePath,
+                            unsigned char* encryptionKey, unsigned char* iv);
