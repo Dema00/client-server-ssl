@@ -258,7 +258,7 @@ void decryptSQLite3Database(const std::string& encryptedFilePath, const std::str
         std::cerr << "Failed to create the decrypted database file." << std::endl;
         return;
     }
-    decryptedFile.write((char *)decryptedDb, size);
+    decryptedFile.write(reinterpret_cast<const char*>(decryptedDb), size);
     decryptedFile.close();
 }
 
@@ -279,9 +279,16 @@ void encryptSQLite3Database(const std::string& originalFilePath, const std::stri
     originalFile.read(reinterpret_cast<char*>(originalContent.data()), originalSize);
     originalFile.close();
 
-    unsigned char encryptedDb [originalContent.size()+32];
 
-    int size = decrypt(originalContent.data(),originalContent.size(),encryptionKey, iv,encryptedDb);
+    unsigned char encryptedDb[originalContent.size()+16];
+
+    // Perform encryption using your encryption algorithm or library
+    int size = encrypt(originalContent.data(), originalContent.size(), encryptionKey, iv, encryptedDb);
+    
+    if (size <= 0) {
+        std::cerr << "Encryption failed." << std::endl;
+        return;
+    }
 
     // Write the encrypted content to a new file
     std::ofstream encryptedFile(encryptedFilePath, std::ios::binary);
@@ -289,7 +296,40 @@ void encryptSQLite3Database(const std::string& originalFilePath, const std::stri
         std::cerr << "Failed to create the encrypted database file." << std::endl;
         return;
     }
-    encryptedFile.write((char*)encryptedDb, size);
+    encryptedFile.write(reinterpret_cast<const char*>(encryptedDb), size);
     encryptedFile.close();
+}
+
+int open_db(std::string source_path, unsigned char* encryptionKey, unsigned char* iv, sqlite3** target) {
+    std::string enc_path = source_path;
+    enc_path.erase(enc_path.size()-3);
+    enc_path = enc_path + "_encrypted";
+    std::string dec_path = source_path;
+    dec_path.erase(dec_path.size()-3);
+    dec_path = dec_path + "_decrypted.db";
+    decryptSQLite3Database(enc_path,dec_path,encryptionKey,iv);
+
+    if (sqlite3_open_v2(dec_path.c_str(), target, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
+        std::cerr << "ERROR WHILE OPENING DATABASE";
+        return 1;
+    }
+
+    return 0;
+}
+
+int close_db(std::string source_path, unsigned char* decryptionKey, unsigned char* iv, sqlite3* target) {
+    std::string dec_path = source_path;
+    dec_path.erase(dec_path.size()-3);
+    dec_path = dec_path + "_decrypted.db";
+    std::string enc_path = source_path;
+    enc_path.erase(enc_path.size()-3);
+    enc_path = enc_path + "_encrypted";
+    encryptSQLite3Database(dec_path,enc_path,decryptionKey,iv);
+
+    remove(dec_path.c_str());
+
+    sqlite3_close_v2(target);
+
+    return 0;
 }
 

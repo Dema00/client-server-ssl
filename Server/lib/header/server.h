@@ -47,6 +47,7 @@ class Server {
 
         // db management
         sqlite3* db;
+        std::string db_path;
 
         // server private key
         EVP_PKEY* priv_key;
@@ -76,7 +77,10 @@ class Server {
         ~Server() {
             EVP_PKEY_free(priv_key);
             sqlite3_close_v2(db);
-            stopServer();
+            // Close the socket
+            if (close(sd) != 0) {
+                std::cerr << "ERROR WHILE CLOSING SOCKET " << sd << std::endl;
+            }
         };
 
         void startServer();

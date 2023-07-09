@@ -15,6 +15,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 
 #include "crypto.h"
 
@@ -46,3 +47,7 @@ void decryptSQLite3Database(const std::string& encryptedFilePath, const std::str
 
 void encryptSQLite3Database(const std::string& originalFilePath, const std::string& encryptedFilePath,
                             unsigned char* encryptionKey, unsigned char* iv);
+
+int open_db(std::string source_path, unsigned char* encryptionKey, unsigned char* iv, sqlite3** target);
+
+int close_db(std::string source_path, unsigned char* decryptionKey, unsigned char* iv, sqlite3* target);

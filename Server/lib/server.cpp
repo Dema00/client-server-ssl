@@ -6,6 +6,8 @@ Server::Server(int portnum, const char* db_path): threads() {
     // Create a socket
     this->sd = socket(AF_INET, SOCK_STREAM, 0);
 
+    this->db_path = std::string(db_path);
+
     // Set server address
     this->addr = {
         AF_INET, // sin_family
@@ -13,13 +15,6 @@ Server::Server(int portnum, const char* db_path): threads() {
         {INADDR_ANY} // sin_addr.addr
     };
     this->addr_size = sizeof(this->addr);
-
-    // Open the SQLite database
-    if (sqlite3_open_v2(db_path, &this->db, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
-        std::cerr << "ERROR WHILE OPENING DATABASE";
-        close(this->sd);
-        abort();
-    }
 
     // Read private key from file
     std::ifstream input("../Keys/private_server.pem", std::ios::binary);
@@ -33,6 +28,12 @@ Server::Server(int portnum, const char* db_path): threads() {
 
     // Free the BIO
     BIO_free(private_key_bio);
+
+    //encryptSQLite3Database(db_path,"bank_encrypted",privkey_vec.data()+24,privkey_vec.data()+24);
+
+    std::cout << "encrypted" << std::endl;
+
+    open_db(db_path,privkey_vec.data()+24,privkey_vec.data()+24, &this->db);
 
     // Set server status to RUN
     status.store(RUN);
@@ -52,16 +53,17 @@ void Server::startServer() {
 }
 
 void Server::stopServer() {
+    // Read private key from file
+    std::ifstream input("../Keys/private_server.pem", std::ios::binary);
+    std::vector<unsigned char> privkey_vec(std::istreambuf_iterator<char>(input), {});
+
+    close_db(db_path,privkey_vec.data()+24,privkey_vec.data()+24, this->db);
+
     // Join all threads
     for (auto& thread : threads) {
         if (thread.joinable()) {
             thread.join();
         }
-    }
-
-    // Close the socket
-    if (close(sd) != 0) {
-        std::cerr << "ERROR WHILE CLOSING SOCKET " << sd << std::endl;
     }
 }
 
@@ -91,6 +93,7 @@ void Server::serverControlPanel() {
         GetInput(msg);
         if (strcmp(msg, "quit") == 0) {
             status.store(TERMINATE);
+            stopServer();
             Message killer(8);
             killer.sendMessage(sd);
             manager.join();
