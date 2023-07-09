@@ -33,7 +33,7 @@ std::string get_user_from_id(sqlite3* db, int id);
 
 std::vector<std::string> get_history(sqlite3* db, std::string username, int t_num);
 
-int insert_transaction(sqlite3* db, std::string sender_username, std::string recipient_username,double amount);
+void processTransaction(sqlite3* db, const std::string& senderUsername, const std::string& recipientUsername, double amount);
 
 
 int check_user(sqlite3* db, std::string username);

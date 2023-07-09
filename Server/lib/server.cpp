@@ -243,7 +243,7 @@ void manageTransfer(MessageInterface* message, std::string username, int client,
         message->clearContents();
         return;
     }
-    insert_transaction(db, username, recipient_username, amount);
+    processTransaction(db, username, recipient_username, amount);
     
     // Check amount of money
     message->clearContents();

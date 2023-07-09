@@ -162,69 +162,74 @@ int check_user(sqlite3* db, std::string username) {
     return 0;
 }
 
-int insert_transaction(sqlite3* db, std::string sender_username, std::string recipient_username,double amount){
+void updateAccountBalance(sqlite3* db, const std::string& username, double amount) {
     sqlite3_stmt* stmt;
 
-    //edit account balance
-    char* statement = sqlite3_mprintf("UPDATE users SET balance = balance - %f WHERE username = %Q\0",amount, sender_username.c_str());
-        DEBUG_MSG(std::cout << statement << std::endl;);
-    sqlite3_prepare_v2(db,statement, strlen(statement), &stmt, NULL);
-
-    if (sqlite3_step(stmt) != SQLITE_DONE){
-        std::cerr << "failed to update balance" << sqlite3_errmsg(db) << std::endl;
-    }
-    sqlite3_finalize(stmt);
+    char* statement = sqlite3_mprintf("UPDATE users SET balance = balance + %f WHERE username = %Q\0", amount, username.c_str());
+    sqlite3_prepare_v2(db, statement, strlen(statement), &stmt, NULL);
     sqlite3_free(statement);
 
-    //edit account balance
-    statement = sqlite3_mprintf("UPDATE users SET balance = balance + %f WHERE username = %Q\0",amount, recipient_username.c_str());
-        DEBUG_MSG(std::cout << statement << std::endl;);
-    sqlite3_prepare_v2(db,statement, strlen(statement), &stmt, NULL);
-
-    if (sqlite3_step(stmt) != SQLITE_DONE){
-        std::cerr << "failed to update balance" << sqlite3_errmsg(db) << std::endl;
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        std::cerr << "Failed to update balance for " << username << ": " << sqlite3_errmsg(db) << std::endl;
     }
+
+    sqlite3_reset(stmt);
     sqlite3_finalize(stmt);
-    sqlite3_free(statement);
-
-    //get user IDs
-    statement = sqlite3_mprintf("SELECT accountID FROM users WHERE username IN (%Q,%Q) ORDER BY CASE WHEN username = %Q THEN 0 WHEN username = %Q THEN 1 ELSE 2 END;\0",
-        sender_username.c_str(),recipient_username.c_str(),sender_username.c_str(),recipient_username.c_str());
-        DEBUG_MSG(std::cout << statement << std::endl;);
-    sqlite3_prepare_v2(db,statement, strlen(statement), &stmt, NULL);
-
-    if (sqlite3_step(stmt) != SQLITE_ROW){
-        std::cerr << sender_username << " not foud! " << sqlite3_errmsg(db) << std::endl;
-    }
-    int sender_ID = sqlite3_column_int(stmt, 0);
-
-    if (sqlite3_step(stmt) != SQLITE_ROW){
-        std::cerr << recipient_username << " not foud! " << sqlite3_errmsg(db) << std::endl;
-    }
-
-    int recipient_ID = sqlite3_column_int(stmt, 0);
-
-    sqlite3_finalize(stmt);
-    sqlite3_free(statement);
-
-    //insert transaction
-    std::time_t now = std::time(0);
-    std::tm * ptm = std::localtime(&now);
-    char timestamp[18];
-    // Format: Mo, 15.06.2009 20:20:00
-    std::strftime(timestamp, 19, "%d.%m.%Y%H:%M:%S", ptm);  
-    std::string timestamp_str(timestamp);
-    statement = sqlite3_mprintf("INSERT INTO transfers (senderID, amount, recipientID,timestamp) VALUES (%i, %f, %i,%Q);\0",
-    sender_ID,amount,recipient_ID,timestamp_str.c_str());
-        DEBUG_MSG(std::cout << statement << std::endl;);
-    sqlite3_prepare_v2(db,statement, strlen(statement), &stmt, NULL);
-
-    if (sqlite3_step(stmt) != SQLITE_DONE){
-        std::cerr << " transaction insertion failed " << sqlite3_errmsg(db) << std::endl;
-    }
-
-    sqlite3_finalize(stmt);
-    sqlite3_free(statement);
-    
 }
+
+int getUserId(sqlite3* db, const std::string& username) {
+    sqlite3_stmt* stmt;
+
+    char* statement = sqlite3_mprintf("SELECT accountID FROM users WHERE username = %Q;\0", username.c_str());
+    sqlite3_prepare_v2(db, statement, strlen(statement), &stmt, NULL);
+    sqlite3_free(statement);
+
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        std::cerr << "User " << username << " not found!" << std::endl;
+        return -1;
+    }
+
+    int userID = sqlite3_column_int(stmt, 0);
+
+    sqlite3_finalize(stmt);
+
+    return userID;
+}
+
+void insertTransaction(sqlite3* db, const std::string& senderUsername, const std::string& recipientUsername, double amount) {
+    int senderID = getUserId(db, senderUsername);
+    if (senderID == -1) {
+        return;
+    }
+
+    int recipientID = getUserId(db, recipientUsername);
+    if (recipientID == -1) {
+        return;
+    }
+
+    char timestamp[18];
+    std::time_t now = std::time(0);
+    std::tm* ptm = std::localtime(&now);
+    std::strftime(timestamp, 19, "%d.%m.%Y%H:%M:%S", ptm);
+    std::string timestampStr(timestamp);
+
+    sqlite3_stmt* stmt;
+    char* statement = sqlite3_mprintf("INSERT INTO transfers (senderID, amount, recipientID, timestamp) VALUES (%i, %f, %i, %Q);\0",
+                                      senderID, amount, recipientID, timestampStr.c_str());
+    sqlite3_prepare_v2(db, statement, strlen(statement), &stmt, NULL);
+    sqlite3_free(statement);
+
+    if (sqlite3_step(stmt) != SQLITE_DONE) {
+        std::cerr << "Failed to insert transaction: " << sqlite3_errmsg(db) << std::endl;
+    }
+
+    sqlite3_finalize(stmt);
+}
+
+void processTransaction(sqlite3* db, const std::string& senderUsername, const std::string& recipientUsername, double amount) {
+    updateAccountBalance(db, senderUsername, -amount);
+    updateAccountBalance(db, recipientUsername, amount);
+    insertTransaction(db, senderUsername, recipientUsername, amount);
+}
+
 
