@@ -35,7 +35,7 @@ Server::Server(int portnum, const char* db_path): threads() {
     BIO_free(private_key_bio);
 
     // Set server status to RUN
-    this->status = RUN;
+    status.store(RUN);
     
     std::cout << "New server created with address: localhost:" << portnum << std::endl;
 }
@@ -86,18 +86,20 @@ void Server::serverControlPanel() {
     std::thread manager(&Server::connectionManager, this);
 
     // Process user input until the server status changes to TERMINATE
-    while (this->status == RUN) {
+    while (status.load() == RUN) {
         char msg[128];
         GetInput(msg);
         if (strcmp(msg, "quit") == 0) {
-            this->status = TERMINATE;
-            manager.detach();
+            status.store(TERMINATE);
+            Message killer(8);
+            killer.sendMessage(sd);
+            manager.join();
         }
     }
 }
 
 void Server::connectionManager() {
-    while (1) {
+    while (status.load() == RUN) {
         // Listen for incoming connections
         if (listen(this->sd, 5) != 0) {
             std::cerr << "ERROR WHILE LISTENING ON " << this->sd;
@@ -178,7 +180,7 @@ void Server::sessionHandler(int client) {
     // Initialize message communication with encryption and integrity protection
     MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
 
-    while (login) {
+    while (login && status.load() == RUN) {
         // Send options to the client
         comm->addContents((const unsigned char*)"What do you want to do? \nWrite one of the following options:\n-)balance\n-)transfer\n-)history", 92);
         comm->sendMessage(client);

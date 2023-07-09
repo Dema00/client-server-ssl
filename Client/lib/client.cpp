@@ -43,7 +43,7 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
         std::cerr << "Error while opening the public RSA key" << std::endl;
         exit(1);
     }
-    BIO_free(public_key_bio);
+    BIO_free_all(public_key_bio);
 }
 
 void Client::startClient() {
@@ -129,6 +129,9 @@ buffer Client::symKeyEstablishment() {
 
     verify_cert(ca_cert, ca_crl, srv_cert);
 
+    X509_CRL_free(ca_crl);
+    X509_free(ca_cert);
+
     // Verify ERSA pubkey+nonce signature
     unsigned char pubkey_nonce[eph_pubkey_len + 32];
     memmove(pubkey_nonce, eph_pubkey_raw, eph_pubkey_len);
@@ -139,6 +142,7 @@ buffer Client::symKeyEstablishment() {
 
     verify_signature(ephrsa.getContentsMut(), 256, pubkey_nonce, eph_pubkey_len + 32, srv_cert);
     ephrsa.clearContents();
+    X509_free(srv_cert);
 
     //Generate and send the symmetric key
     unsigned char symkey[512];

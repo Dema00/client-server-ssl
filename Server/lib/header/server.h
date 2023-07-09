@@ -11,9 +11,11 @@
 #include <thread>
 #include <algorithm>
 #include <map>
+#include <atomic>
 
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <fcntl.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -53,7 +55,7 @@ class Server {
         std::map<std::string,int> connected_users;
 
         // server management
-        serverStatus status;
+        std::atomic<serverStatus> status;
 
         void openListener();
 
@@ -72,7 +74,9 @@ class Server {
 
         Server(int portnum, const char* db_path);
         ~Server() {
-            
+            EVP_PKEY_free(priv_key);
+            sqlite3_close_v2(db);
+            stopServer();
         };
 
         void startServer();
