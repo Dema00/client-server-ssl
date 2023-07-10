@@ -33,7 +33,6 @@ class Client {
 
         EVP_PKEY* priv_key;
         EVP_PKEY* pub_key;
-
         void clientProcess(buffer symkey);
         void openConnection();
         void clientLogin();

@@ -189,8 +189,8 @@ AddRSA::AddRSA(MessageInterface* message, EVP_PKEY* msg_key): MessageDecorator(m
         std::cerr << "Error while opening the RSA key"<< std::endl;
     }
 
-        DEBUG_MSG(print_EVP_PrivKEY(msg_key););
-        DEBUG_MSG(print_EVP_PubKEY(msg_key););
+        //DEBUG_MSG(print_EVP_PrivKEY(msg_key););
+        //DEBUG_MSG(print_EVP_PubKEY(msg_key););
 };
 
 void AddRSA::sendMessage(int sd) {
@@ -295,10 +295,13 @@ AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned cha
 void AddAES256::sendMessage(int sd) {
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
-
-    unsigned char plaintext[this->getReserved()];
-    memset(plaintext, 0, getReserved());
-    memcpy(plaintext,wrapped_message->getContents(),getReserved());
+        DEBUG_MSG(std::cout<<"msg out before int: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+    int plaintext_len = wrapped_message->getContentsSize();
+    wrapped_message->addContentsBeginning((unsigned char *)&plaintext_len,sizeof(int));
+        DEBUG_MSG(std::cout<<"msg out after int: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
+    //unsigned char plaintext[this->getReserved()];
+    //memset(plaintext, 0, getReserved());
+    //memcpy(plaintext,wrapped_message->getContents(),getReserved());
     int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved()-16, this->key, this->iv, ciphertext);
     wrapped_message->clearContents();
     wrapped_message->addContents(ciphertext, len);
@@ -326,16 +329,19 @@ void AddAES256::decryptMessage() {
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
 
-    size_t plaintext_len = this->getContentsSize();
+    int len = decrypt(getContentsMut(), getContentsSize(), this->key, this->iv, plaintext);
 
-    int len = decrypt(getContentsMut(), plaintext_len, this->key, this->iv, plaintext);
+    int plaintext_len = 0;
+    memcpy((unsigned char*)&plaintext_len,plaintext,sizeof(int));
+        DEBUG_MSG(std::cout << "pl len " << plaintext_len << std::endl;);
+
+        DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)plaintext, getReserved()) <<std::endl;);
 
     this->wrapped_message->clearContents();
-    this->wrapped_message->addContents(plaintext, len);
-        DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getReserved()) <<std::endl;);
-    this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
+    this->wrapped_message->addContents((unsigned char*)plaintext+sizeof(int), plaintext_len);
+    //this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));
     //wrapped_message->getBuffer()->shrink_to_fit();
-    memset(this->wrapped_message->getBuffer()->end().base(),0, getReserved()-getContentsSize() );
+    //memset(this->wrapped_message->getBuffer()->end().base(),0, getReserved()-getContentsSize() );
         DEBUG_MSG(std::cout<<"msg in clean: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
 }
 
@@ -416,6 +422,7 @@ void AddTimestamp::finalizeReception() {
     unsigned char timestamp[18];
     memmove(timestamp,getContents(),18);
     memmove(getContentsMut(),getContents()+18,getReserved()-18);
+    wrapped_message->getBuffer()->resize(getContentsSize()-18);
     DEBUG_MSG(std::cout<<"msg in time: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     //getBuffer()->resize(getReserved()-18);
     //DEBUG_MSG(std::cout<<getReserved()<< " reserved after timestamp " << std::endl;);

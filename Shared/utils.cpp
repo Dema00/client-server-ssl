@@ -28,3 +28,82 @@ void print_EVP_PrivKEY(EVP_PKEY* key) {
     }
     BIO_free(bio);
 }
+
+int getSingleNumberInput() {
+    int input;
+    bool validInput = false;
+
+    do {
+        std::cout << "Enter a single number: ";
+        std::cin >> input;
+
+        // Check if the input is a valid number
+        if (std::cin.good() && std::cin.peek() == '\n') {
+            validInput = true;
+        } else {
+            std::cout << "Invalid input. Please enter a single number." << std::endl;
+            // Clear the input buffer to handle any additional characters
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+    } while (!validInput);
+
+    return input;
+}
+
+float getFloatInput() {
+    float input;
+    std::string inputStr;
+
+    while (true) {
+        std::cout << "Enter a floating-point number: ";
+        std::getline(std::cin, inputStr);
+
+        std::istringstream iss(inputStr);
+        if (iss >> input && iss.eof()) {
+            // Valid input
+            break;
+        } else {
+            std::cout << "Invalid input. Please enter a valid floating-point number." << std::endl;
+            // Clear the input buffer
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        }
+    }
+
+    return input;
+}
+
+double getDoubleInputWithMaxSize(size_t maxDigits) {
+    std::string input;
+
+    std::cout << "Enter a number (maximum " << maxDigits << " digits): ";
+    std::getline(std::cin, input);
+
+    // Validate input size
+    if (input.length() > maxDigits) {
+        std::cout << "Input exceeds the maximum allowed size. Resizing..." << std::endl;
+        input.resize(maxDigits);  // Trim input to the maximum size
+    }
+
+    // Convert string to double
+    double value;
+    std::istringstream iss(input);
+    iss >> std::setprecision(maxDigits) >> value;
+
+    return value;
+}
+
+std::string getStringInputWithMaxSize(size_t maxSize) {
+    std::string input = "0";
+    std::cin.ignore();
+    std::getline(std::cin, input);
+
+    // Validate input size
+    if (input.length() > maxSize) {
+        std::cout << "Input exceeds the maximum allowed size. Resizing..." << std::endl;
+        input.resize(maxSize);  // Trim input to the maximum size
+    }
+
+    return input;
+}

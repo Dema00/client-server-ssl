@@ -243,16 +243,91 @@ void Client::messagePrinter(buffer symkey) {
     delete received;
 }
 
+std::pair<int,double> Balance(MessageInterface* message, int sd) {
+    message->clearContents();
+    message->addContents((const unsigned char*)"1",2);    
+    message->sendMessage(sd);
+    message->clearContents();
+
+    message->receiveMessage(sd);
+
+    std::pair<int,double> balance = {0,0.0};
+    memmove(&balance.first,message->getContents(),sizeof(int));
+    memmove(&balance.second,message->getContents()+sizeof(int),sizeof(double));
+
+    message->clearContents();
+    return balance;
+}
+
+void manageBalance(MessageInterface* message, int sd) {
+    std::pair<int,double> balance = Balance(message,sd);
+    std::cout << "Account ID : " << balance.first << std::endl
+        << "Account balance : " << balance.second << std::endl; 
+}
+
+bool Transfer(MessageInterface* message, std::string recipient, double amount, int sd) {
+    message->clearContents();
+    message->addContents((const unsigned char*)"2",2);    
+    message->sendMessage(sd);
+    message->clearContents();
+    // send info
+    message->addContents((const unsigned char*)&amount,sizeof(double));
+    message->addContents((const unsigned char*)recipient.c_str(),recipient.size()+1);
+    message->sendMessage(sd);
+    message->clearContents();
+
+    message->receiveMessage(sd);
+    bool success = false;
+    //check for errors
+    if (std::string((char *)message->getContents()) == "RECIPIENT_ERROR") {
+        std::cerr << "recipient is not a client!" << std::endl;
+        return false;
+    } else if (std::string((char *)message->getContents()) == "TRANSFER_DONE") {
+        success = true;
+    }
+    message->clearContents();
+
+    return success;
+}
+
+void manageTransfer(MessageInterface* message, int sd) {
+    std::cout << "Insert recipient name: " << std::endl;
+    std::string recipient = getStringInputWithMaxSize(message->getReserved());
+    double amount = getDoubleInputWithMaxSize(4);
+    bool success = Transfer(message,recipient,amount,sd);
+    if (success) {
+        std::cout << "Transfer completed correctly!" << std::endl;
+    } else {
+        std::cerr << "Error during transfer!" << std::endl;
+    }
+}
+
+void manageHistory(MessageInterface* message, int sd) {
+    
+}
+
 void Client::clientProcess(buffer symkey) {
-    std::thread printer(&Client::messagePrinter, this, symkey);
+    //std::thread printer(&Client::messagePrinter, this, symkey);
     MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
     DEBUG_MSG(std::cout << "created sendMessage message" << std::endl;);
+    int choice = 0;
     while (1) {
-        char msg[128];
-        memset(msg, 0, 128);
-        GetInput(msg);
-        to_send->addContents((const unsigned char*)msg, 128);
-        to_send->sendMessage(this->sd);
+        std::cout << "What do you want to do?\n1 -> view balance\n2 -> transfer money \n3 -> recent transfers\n4 -> quit" << std::endl;
+        choice = getSingleNumberInput();
+        switch (choice) {
+            case 1:
+                manageBalance(to_send,sd);
+                break;
+            case 2:
+                manageTransfer(to_send,sd);
+                break;
+            case 3:
+                break;
+            case 4:
+                break;
+            default:
+                std::cout << "Not a valid operation!" << std::endl;
+        }
         DEBUG_MSG(std::cout << "Sent message" << std::endl;);
         to_send->clearContents();
     }

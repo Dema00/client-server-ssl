@@ -189,10 +189,6 @@ void Server::sessionHandler(int client) {
     MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
 
     while (login && status.load() == RUN) {
-        // Send options to the client
-        comm->addContents((const unsigned char*)"What do you want to do? \nWrite one of the following options:\n-)balance\n-)transfer\n-)history", 92);
-        comm->sendMessage(client);
-        comm->clearContents();
 
         // Receive client's choice
         comm->receiveMessage(client);
@@ -221,59 +217,40 @@ void Server::sessionHandler(int client) {
 }
 
 void manageTransfer(MessageInterface* message, std::string username, int client, sqlite3* db) {
-    // Transfer operation
-    message->addContents((const unsigned char*)"Name of user to send money to: ", 32);
-    message->sendMessage(client);
-    message->clearContents();
     
     message->receiveMessage(client);
     // Find recipient in the database
-    std::string recipient_username((const char*)message->getContents());
+    std::string recipient_username((const char*)message->getContents()+sizeof(double));
     if (check_user(db, recipient_username) != 0) {
         message->clearContents();
-        message->addContents((const unsigned char*)"Recipient not in db!", 21);
+        message->addContents((const unsigned char*)"RECIPIENT_ERROR", 16);
         message->sendMessage(client);
         message->clearContents();
         return;
     }
     message->clearContents();
 
-    message->addContents((const unsigned char*)"Amount of money to send: ", 26);
-    message->sendMessage(client);
-    message->clearContents();
-
-    message->receiveMessage(client);
-    double amount = std::strtof((const char*)message->getContents(), nullptr);
-    if (amount <= 0) {
-        message->clearContents();
-        message->addContents((const unsigned char*)"Amount must be positive and non-zero!", 38);
-        message->sendMessage(client);
-        message->clearContents();
-        return;
-    }
+    double amount = 0;
+    memmove((unsigned char*)&amount, message->getContents(),sizeof(double));
+    std::cout << "amount " << amount << std::endl;
     processTransaction(db, username, recipient_username, amount);
     
-    // Check amount of money
+    // ACK
     message->clearContents();
-    message->addContents((const unsigned char*)"Transaction completed successfully!", 35);
+    message->addContents((const unsigned char*)"TRANSFER_DONE", 14);
     message->sendMessage(client);
-
     message->clearContents();
 }
 
 void manageBalance(MessageInterface* message, std::string username, int client, sqlite3* db) {
-    std::string id = std::to_string(get_user_id(db, username));
-    std::string balance = std::to_string(get_user_balance(db, username));
+    int id = get_user_id(db, username);
+    double balance = get_user_balance(db, username);
 
     message->clearContents();
-    message->addContents((const unsigned char*)"----------------------\n", 23);
-    message->addContents((const unsigned char*)"Account ID: ", 12);
-    message->addContents((const unsigned char*)id.c_str(), id.size());
-    message->addContents((const unsigned char*)"\nBalance: ", 10);
-    message->addContents((const unsigned char*)balance.c_str(), balance.size());
-    message->addContents((const unsigned char*)"\n----------------------", 24);
+    message->addContents((const unsigned char*)&id,sizeof(int));
+    message->addContents((const unsigned char*)&balance,sizeof(double));
     message->sendMessage(client);
-    message->clearContents();
+
 }
 
 void manageHistory(MessageInterface* message, std::string username, int client, sqlite3* db) {
@@ -301,31 +278,22 @@ void Server::operationManager(MessageInterface* message, std::string username, i
     std::string input((const char*)message->getContents());
     message->clearContents();
 
-    std::map<std::string, int> stringMap;
-    stringMap["transfer"] = 1;
-    stringMap["history"] = 2;
-    stringMap["balance"] = 3;
-
-    if (stringMap.find(input) != stringMap.end()) {
-        int value = stringMap[input];
-        switch (value) {
-            case 1:
-                manageTransfer(message, username, client, db);
-                break;
-            case 2:
-                manageHistory(message, username, client, db);
-                break;
-            case 3:
-                manageBalance(message, username, client, db);
-                break;
-            default:
-                std::cout << "Unknown selection." << std::endl;
-        }
-    } else {
-        message->addContents((const unsigned char*)"Not a valid operation!", 23);
-        message->sendMessage(client);
-        message->clearContents();
+    int value = stoi(input);
+    switch (value) {
+        case 1:
+            manageBalance(message, username, client, db);
+            break;
+        case 2:
+            manageTransfer(message, username, client, db);
+            break;
+        case 3:
+            manageHistory(message, username, client, db);
+            break;
+        default:
+            std::cout << "Unknown selection." << std::endl;
     }
+
+    message->clearContents();
 }
 
 // Symmetric key exchange between server and client
