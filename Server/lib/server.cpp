@@ -350,7 +350,7 @@ buffer Server::symkeyExchange(int client) {
 
     // Extract symmetric key from received message
     std::vector<unsigned char> symkey;
-    symkey.insert(symkey.begin(), receive_symkey->getContents(), receive_symkey->getContents() + 32);
+    symkey.insert(symkey.begin(), receive_symkey->getContents(), receive_symkey->getContents() + 64);
 
     delete receive_symkey;
 

@@ -309,7 +309,7 @@ int open_db(std::string source_path, unsigned char* encryptionKey, unsigned char
     dec_path = dec_path + "_decrypted.db";
     decryptSQLite3Database(enc_path,dec_path,encryptionKey,iv);
 
-    if (sqlite3_open_v2(dec_path.c_str(), target, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
+    if (sqlite3_open_v2(source_path.c_str(), target, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
         std::cerr << "ERROR WHILE OPENING DATABASE";
         return 1;
     }

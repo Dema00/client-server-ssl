@@ -146,10 +146,10 @@ buffer Client::symKeyEstablishment() {
 
     //Generate and send the symmetric key
     unsigned char symkey[512];
-    RAND_bytes(symkey, 32);
+    RAND_bytes(symkey, 64);
 
-    MessageInterface* symkey_send = new AddRSA(new Message(32), ephrsa_pubkey);
-    symkey_send->addContents(symkey, 32);
+    MessageInterface* symkey_send = new AddRSA(new Message(64), ephrsa_pubkey);
+    symkey_send->addContents(symkey, 64);
     symkey_send->sendMessage(sd);
     symkey_send->clearContents();
     delete symkey_send;
@@ -159,7 +159,7 @@ buffer Client::symKeyEstablishment() {
     EVP_PKEY_free(ephrsa_pubkey);
 
     std::vector<unsigned char> symkey_buf;
-    symkey_buf.insert(symkey_buf.begin(), symkey, symkey + 32);
+    symkey_buf.insert(symkey_buf.begin(), symkey, symkey + 64);
 
     return symkey_buf;
 }

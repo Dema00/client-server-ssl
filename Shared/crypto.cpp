@@ -14,6 +14,8 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
 
     int ciphertext_len;
 
+    DEBUG_MSG(std::cout<<"ENC KEY: \n" << BIO_dump_fp (stdout, (const char *)key, 64) <<std::endl;);
+
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
         handleErrors();
@@ -25,7 +27,7 @@ int encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key,
      * IV size for *most* modes is the same as the block size. For AES this
      * is 128 bits
      */
-    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
+    if(1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_xts(), NULL, key, iv))
         handleErrors();
 
     /*
@@ -60,6 +62,8 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
 
     int plaintext_len;
 
+    DEBUG_MSG(std::cout<<"DEC KEY: \n" << BIO_dump_fp (stdout, (const char *)key, 64) <<std::endl;);
+
     /* Create and initialise the context */
     if(!(ctx = EVP_CIPHER_CTX_new()))
         handleErrors();
@@ -71,7 +75,7 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
      * IV size for *most* modes is the same as the block size. For AES this
      * is 128 bits
      */
-    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_cbc(), NULL, key, iv))
+    if(1 != EVP_DecryptInit_ex(ctx, EVP_aes_256_xts(), NULL, key, iv))
         handleErrors();
 
     /*
@@ -93,6 +97,8 @@ int decrypt(unsigned char *ciphertext, int ciphertext_len, unsigned char *key,
     /* Clean up */
     EVP_CIPHER_CTX_free(ctx);
 
+        DEBUG_MSG(std::cout << "finished decrypt" << std::endl;);
+
     return plaintext_len;
 }
 
@@ -112,7 +118,7 @@ int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
 
     if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
-    if(1 != EVP_SealInit(ctx, EVP_aes_256_cbc(), &encrypted_key,
+    if(1 != EVP_SealInit(ctx, EVP_aes_256_xts(), &encrypted_key,
 		&encrypted_key_len, iv, pub_key, 1))
 		handleErrors();
 
@@ -136,6 +142,8 @@ int rsa_encrypt(EVP_PKEY **pub_key, unsigned char *plaintext, int plaintext_len,
     free(temp_ciphertext);
 	EVP_CIPHER_CTX_free(ctx);
 
+        DEBUG_MSG(std::cout << "finished encrypt" << std::endl;);
+
 	return ciphertext_len;    
 }
 
@@ -148,7 +156,7 @@ int rsa_decrypt(EVP_PKEY *priv_key, unsigned char *ciphertext, int ciphertext_le
 
     if(!(ctx = EVP_CIPHER_CTX_new())) handleErrors();
 
-    if(1 != EVP_OpenInit(ctx, EVP_aes_256_cbc(), encrypted_key,
+    if(1 != EVP_OpenInit(ctx, EVP_aes_256_xts(), encrypted_key,
 		encrypted_key_len, iv, priv_key)){
             std::cerr << "failed to init RSA decrypt" << std::endl;
 		    handleErrors();

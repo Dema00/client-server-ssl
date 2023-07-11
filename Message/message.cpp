@@ -205,7 +205,7 @@ void AddRSA::sendMessage(int sd) {
 
     // allocate buffers for encrypted key and IV:
     unsigned char* encrypted_key = (unsigned char*)malloc(EVP_PKEY_size(key));
-    unsigned char* iv = (unsigned char*)malloc(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    unsigned char* iv = (unsigned char*)malloc(EVP_CIPHER_iv_length(EVP_aes_256_xts()));
     if(!encrypted_key || !iv) { std::cerr << "Error: malloc returned NULL (encrypted key too big?)\n"; exit(1); }
 
         DEBUG_MSG(std::cout<<"Succesfully allocated enc_key and iv" << std::endl;);
@@ -216,12 +216,12 @@ void AddRSA::sendMessage(int sd) {
 
         DEBUG_MSG(std::cout<<"Succesfully encrypted RSA msg" << std::endl;);
         DEBUG_MSG(std::cout<<"RSA msg Size" << this->getReserved() <<std::endl;);
-        DEBUG_MSG(std::cout<<"IV: \n" << BIO_dump_fp (stdout, (const char *)iv, EVP_CIPHER_iv_length(EVP_aes_256_cbc())) <<std::endl;);
+        DEBUG_MSG(std::cout<<"IV: \n" << BIO_dump_fp (stdout, (const char *)iv, EVP_CIPHER_iv_length(EVP_aes_256_xts())) <<std::endl;);
         DEBUG_MSG(std::cout<<"Enc_key: \n" << BIO_dump_fp (stdout, (const char *)encrypted_key, EVP_PKEY_size(key)) <<std::endl;);
         DEBUG_MSG(std::cout<<"RSA CIPHERTEXT: \n" << BIO_dump_fp (stdout, (const char *)ciphertext, len) <<std::endl;);
 
     wrapped_message->clearContents();
-    wrapped_message->addContents(iv,EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    wrapped_message->addContents(iv,EVP_CIPHER_iv_length(EVP_aes_256_xts()));
     wrapped_message->addContents(encrypted_key,EVP_PKEY_size(key));
     wrapped_message->addContents((unsigned char*)len_str, strlen(len_str));
     wrapped_message->addContents(ciphertext, len);
@@ -253,8 +253,8 @@ void AddRSA::decryptMessage() {
     unsigned char ciphertext[this->getReserved()];
     memset(ciphertext, 0, getReserved());
 
-    unsigned char iv[EVP_CIPHER_iv_length(EVP_aes_256_cbc())];
-    memset(iv, 0, EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+    unsigned char iv[EVP_CIPHER_iv_length(EVP_aes_256_xts())];
+    memset(iv, 0, EVP_CIPHER_iv_length(EVP_aes_256_xts()));
 
     unsigned char encrypted_key[EVP_PKEY_size(key)];
     memset(iv, 0, EVP_PKEY_size(key));
@@ -263,7 +263,7 @@ void AddRSA::decryptMessage() {
     int cipher_len;
 
 
-    int iv_size = EVP_CIPHER_iv_length(EVP_aes_256_cbc());
+    int iv_size = EVP_CIPHER_iv_length(EVP_aes_256_xts());
     int ekey_size = EVP_PKEY_size(key);
 
     memmove(iv,wrapped_message->getContents(), iv_size);
@@ -302,7 +302,7 @@ void AddAES256::sendMessage(int sd) {
     //unsigned char plaintext[this->getReserved()];
     //memset(plaintext, 0, getReserved());
     //memcpy(plaintext,wrapped_message->getContents(),getReserved());
-    int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved()-16, this->key, this->iv, ciphertext);
+    int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved(), this->key, this->iv, ciphertext);
     wrapped_message->clearContents();
     wrapped_message->addContents(ciphertext, len);
         DEBUG_MSG(std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
