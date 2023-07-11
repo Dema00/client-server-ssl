@@ -232,6 +232,15 @@ void manageTransfer(MessageInterface* message, std::string username, int client,
 
     double amount = 0;
     memmove((unsigned char*)&amount, message->getContents(),sizeof(double));
+    double balance = get_user_balance(db, username);
+
+    if (amount > balance) {
+        message->clearContents();
+        message->addContents((const unsigned char*)"NOT_ENOUGH_MONEY", 17);
+        message->sendMessage(client);
+        message->clearContents();
+        return;
+    }
     processTransaction(db, username, recipient_username, amount);
     
     // ACK

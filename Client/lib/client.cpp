@@ -261,8 +261,9 @@ std::pair<int,double> Balance(MessageInterface* message, int sd) {
 
 void manageBalance(MessageInterface* message, int sd) {
     std::pair<int,double> balance = Balance(message,sd);
-    std::cout << "Account ID : " << balance.first << std::endl
-        << "Account balance : " << balance.second << std::endl; 
+    std::cout << "╔═════════════════\n" <<"║Account ID : " << balance.first << std::endl
+        << "║Account balance : " << balance.second << std::endl
+        << "╚═════════════════" << std::endl; 
 }
 
 bool Transfer(MessageInterface* message, std::string recipient, double amount, int sd) {
@@ -280,7 +281,10 @@ bool Transfer(MessageInterface* message, std::string recipient, double amount, i
     bool success = false;
     //check for errors
     if (std::string((char *)message->getContents()) == "RECIPIENT_ERROR") {
-        std::cerr << "recipient is not a client!" << std::endl;
+        std::cerr << "Recipient is not a client!" << std::endl;
+        return false;
+    } else if (std::string((char *)message->getContents()) == "NOT_ENOUGH_MONEY") {
+        std::cerr << "Not enoug money in account!" << std::endl;
         return false;
     } else if (std::string((char *)message->getContents()) == "TRANSFER_DONE") {
         success = true;
@@ -294,6 +298,9 @@ void manageTransfer(MessageInterface* message, int sd) {
     std::cout << "Insert recipient name: " << std::endl;
     std::string recipient = getStringInputWithMaxSize(message->getReserved());
     double amount = getDoubleInputWithMaxSize(4);
+    if (amount <= 0) {
+        std::cerr << "Cannot send no or negative money!" << std::endl;
+    }
     bool success = Transfer(message,recipient,amount,sd);
     if (success) {
         std::cout << "Transfer completed correctly!" << std::endl;
@@ -314,9 +321,6 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
     memmove(&t_amount,message->getContents(),sizeof(int));
     int skip = sizeof(int);
 
-    std::cout << " amount of transactions " << t_amount << std::endl;
-    std::cout << " uname " << uname << std::endl;
-
     for (int c = 1; c <= t_amount; c++) {
         double amount = 0;
         std::string timestamp;
@@ -331,13 +335,13 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
         skip = sizeof(int) + c*(sizeof(double)+20+rec_username.size()+1+snd_username.size()+1);
 
         if (snd_username != uname) {
-            std::cout << "received " << amount << 
-            " euros \n from " << snd_username << "\n on " << timestamp <<
-            "\n----------" << std::endl;
+            std::cout << "╠══════════════════\n" << "║received " << amount << 
+            " euros \n║from " << snd_username << "\n║on " << timestamp
+             << std::endl;
         } else {
-            std::cout << "sent " << amount <<
-            " euros \n to " << rec_username << "\n on " << timestamp <<
-            "\n----------" << std::endl;
+            std::cout << "╠══════════════════\n" << "║sent " << amount <<
+            " euros \n║to " << rec_username << "\n║on " << timestamp
+             << std::endl;
         }
 
     }

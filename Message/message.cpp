@@ -329,7 +329,7 @@ void AddAES256::decryptMessage() {
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
 
-    int len = decrypt(getContentsMut(), getContentsSize(), this->key, this->iv, plaintext);
+    decrypt(getContentsMut(), getContentsSize(), this->key, this->iv, plaintext);
 
     int plaintext_len = 0;
     memcpy((unsigned char*)&plaintext_len,plaintext,sizeof(int));
