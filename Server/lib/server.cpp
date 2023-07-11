@@ -29,11 +29,9 @@ Server::Server(int portnum, const char* db_path): threads() {
     // Free the BIO
     BIO_free(private_key_bio);
 
-    //encryptSQLite3Database(db_path,"bank_encrypted",privkey_vec.data()+24,privkey_vec.data()+24);
+    //encryptSQLite3Database(db_path,"bank_encrypted",privkey_vec.data()+40,privkey_vec.data()+40);
 
-    std::cout << "encrypted" << std::endl;
-
-    open_db(db_path,privkey_vec.data()+24,privkey_vec.data()+24, &this->db);
+    open_db(db_path,privkey_vec.data()+40,privkey_vec.data()+40, &this->db);
 
     // Set server status to RUN
     status.store(RUN);
@@ -57,7 +55,7 @@ void Server::stopServer() {
     std::ifstream input("../Keys/private_server.pem", std::ios::binary);
     std::vector<unsigned char> privkey_vec(std::istreambuf_iterator<char>(input), {});
 
-    close_db(db_path,privkey_vec.data()+24,privkey_vec.data()+24, this->db);
+    close_db(db_path,privkey_vec.data()+40,privkey_vec.data()+40, this->db);
 
     // Join all threads
     for (auto& thread : threads) {
@@ -193,9 +191,11 @@ void Server::sessionHandler(int client) {
         // Receive client's choice
         comm->receiveMessage(client);
         DEBUG_MSG(std::cout<< "received msg" << std::endl;);
-        // Check if client has disconnected
-        if (comm->getStatus() !=OK) {
+        // Check if client has disconnected or wants to quit
+        int quit = memcmp(comm->getContents(),"QUIT",5);
+        if (comm->getStatus() !=OK || quit == 0) {
             std::cerr << "client " << username << " has disconnected" << std::endl;
+            login = false;
             this->connected_users.erase(username);
             close(client);
             break;
@@ -232,7 +232,6 @@ void manageTransfer(MessageInterface* message, std::string username, int client,
 
     double amount = 0;
     memmove((unsigned char*)&amount, message->getContents(),sizeof(double));
-    std::cout << "amount " << amount << std::endl;
     processTransaction(db, username, recipient_username, amount);
     
     // ACK
@@ -254,20 +253,12 @@ void manageBalance(MessageInterface* message, std::string username, int client, 
 }
 
 void manageHistory(MessageInterface* message, std::string username, int client, sqlite3* db) {
-
-    message->addContents((const unsigned char*)"How many of the last transfers do you want to see? : ", 54);
-    message->sendMessage(client);
-    message->clearContents();
-    
-    message->receiveMessage(client);
-    int n_transactions = std::stoi((const char*)message->getContents());
-    message->clearContents();
-
-    std::vector<std::string> history = get_history(db, username, n_transactions);
-
+    int n_transactions = 9;
+    std::vector<std::vector<unsigned char>> history = get_history(db, username, n_transactions);
+    n_transactions = history.size();
+    message->addContents((unsigned char*)&n_transactions,sizeof(int));
     for (auto& transaction : history) {
-        message->addContents((unsigned char*)transaction.c_str(), transaction.size());
-        message->addContents((const unsigned char*)"\n", 1);
+        message->addContents(transaction.data(), transaction.size());
     }
 
     message->sendMessage(client);

@@ -118,28 +118,33 @@ std::string get_user_from_id(sqlite3* db, int id) {
     return ret;
 }
 
-std::vector<std::string> get_history(sqlite3* db, std::string username, int t_num) {
+std::vector<std::vector<unsigned char>> get_history(sqlite3* db, std::string username, int t_num) {
     sqlite3_stmt* stmt;
 
-    std::vector<std::string> vec;
+    std::vector<std::vector<unsigned char>> vec_ret;
 
     int id = get_user_id(db,username);
-    char* query = sqlite3_mprintf("SELECT recipientID, amount, timestamp FROM transfers WHERE senderID = %i ORDER BY transferID DESC LIMIT %i\0",id,t_num);
+    char* query = sqlite3_mprintf("SELECT recipientID, amount, timestamp, senderID FROM transfers WHERE senderID = %i OR recipientID = %i ORDER BY transferID DESC LIMIT %i\0",id,id,t_num);
         DEBUG_MSG(std::cout << query << std::endl;);
     sqlite3_prepare_v2(db,query, strlen(query), &stmt, NULL);
     sqlite3_free(query);
 
     while (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::vector<unsigned char> vec;
         std::string uname = get_user_from_id(db,sqlite3_column_int(stmt, 0));
-        std::string amount = std::to_string(sqlite3_column_double(stmt, 1));
+        std::string uname_sender = get_user_from_id(db,sqlite3_column_int(stmt, 3));
+        double amount = sqlite3_column_double(stmt, 1);
         std::string time = std::string((const char*)sqlite3_column_text(stmt, 2));
-
-        vec.push_back("sent " + amount + " to " + uname + " on " + time);
+        vec.insert(vec.end(),(const char*)&amount,(const char*)&amount + sizeof(double));
+        vec.insert(vec.end(),time.data(),time.data()+time.size()+1);
+        vec.insert(vec.end(),uname.data(),uname.data()+uname.size()+1);
+        vec.insert(vec.end(),uname_sender.data(),uname_sender.data()+uname_sender.size()+1);
+        vec_ret.push_back(vec);
     }
     
     sqlite3_finalize(stmt);
 
-    return vec;
+    return vec_ret;
 }
 
 //-1 if absent, 0 if present
@@ -309,7 +314,7 @@ int open_db(std::string source_path, unsigned char* encryptionKey, unsigned char
     dec_path = dec_path + "_decrypted.db";
     decryptSQLite3Database(enc_path,dec_path,encryptionKey,iv);
 
-    if (sqlite3_open_v2(source_path.c_str(), target, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
+    if (sqlite3_open_v2(dec_path.c_str(), target, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
         std::cerr << "ERROR WHILE OPENING DATABASE";
         return 1;
     }

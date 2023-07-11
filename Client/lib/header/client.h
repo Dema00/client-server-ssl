@@ -47,8 +47,8 @@ class Client {
         void startClient();
         void stopClient();
         ~Client() {
-            delete[] uname;
-            delete[] hostname;
+            //delete[] uname;
+            //delete[] hostname;
             sqlite3_close_v2(db);
             EVP_PKEY_free(priv_key);
             EVP_PKEY_free(pub_key);

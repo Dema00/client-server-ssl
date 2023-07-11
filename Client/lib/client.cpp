@@ -302,8 +302,45 @@ void manageTransfer(MessageInterface* message, int sd) {
     }
 }
 
-void manageHistory(MessageInterface* message, int sd) {
-    
+void manageHistory(MessageInterface* message, int sd, std::string uname) {
+    message->clearContents();
+    message->addContents((const unsigned char*)"3",2);    
+    message->sendMessage(sd);
+    message->clearContents();
+
+    message->receiveMessage(sd);
+
+    int t_amount = 0;
+    memmove(&t_amount,message->getContents(),sizeof(int));
+    int skip = sizeof(int);
+
+    std::cout << " amount of transactions " << t_amount << std::endl;
+    std::cout << " uname " << uname << std::endl;
+
+    for (int c = 1; c <= t_amount; c++) {
+        double amount = 0;
+        std::string timestamp;
+        std::string rec_username;
+        std::string snd_username;
+        
+        memmove(&amount,message->getContents()+skip,sizeof(double));
+        timestamp = std::string((char*)message->getContents()+skip+sizeof(double));
+        rec_username = std::string((char*)message->getContents()+skip+sizeof(double)+20);
+        snd_username = std::string((char*)message->getContents()+skip+sizeof(double)+20+rec_username.size()+1);
+
+        skip = sizeof(int) + c*(sizeof(double)+20+rec_username.size()+1+snd_username.size()+1);
+
+        if (snd_username != uname) {
+            std::cout << "received " << amount << 
+            " euros \n from " << snd_username << "\n on " << timestamp <<
+            "\n----------" << std::endl;
+        } else {
+            std::cout << "sent " << amount <<
+            " euros \n to " << rec_username << "\n on " << timestamp <<
+            "\n----------" << std::endl;
+        }
+
+    }
 }
 
 void Client::clientProcess(buffer symkey) {
@@ -311,7 +348,8 @@ void Client::clientProcess(buffer symkey) {
     MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
     DEBUG_MSG(std::cout << "created sendMessage message" << std::endl;);
     int choice = 0;
-    while (1) {
+    bool running = true;
+    while (running) {
         std::cout << "What do you want to do?\n1 -> view balance\n2 -> transfer money \n3 -> recent transfers\n4 -> quit" << std::endl;
         choice = getSingleNumberInput();
         switch (choice) {
@@ -322,8 +360,13 @@ void Client::clientProcess(buffer symkey) {
                 manageTransfer(to_send,sd);
                 break;
             case 3:
+                manageHistory(to_send,sd, std::string(uname));
                 break;
             case 4:
+                to_send->clearContents();
+                to_send->addContents((const unsigned char*)"QUIT",5);    
+                to_send->sendMessage(sd);
+                running = false;
                 break;
             default:
                 std::cout << "Not a valid operation!" << std::endl;
