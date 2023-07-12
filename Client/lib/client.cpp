@@ -300,6 +300,7 @@ void manageTransfer(MessageInterface* message, int sd) {
     double amount = getDoubleInputWithMaxSize(4);
     if (amount <= 0) {
         std::cerr << "Cannot send no or negative money!" << std::endl;
+        return;
     }
     bool success = Transfer(message,recipient,amount,sd);
     if (success) {

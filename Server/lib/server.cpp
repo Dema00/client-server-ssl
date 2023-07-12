@@ -240,14 +240,15 @@ void manageTransfer(MessageInterface* message, std::string username, int client,
         message->sendMessage(client);
         message->clearContents();
         return;
+    } else {
+        processTransaction(db, username, recipient_username, amount);
+        // ACK
+        message->clearContents();
+        message->addContents((const unsigned char*)"TRANSFER_DONE", 14);
+        message->sendMessage(client);
+        message->clearContents();
     }
-    processTransaction(db, username, recipient_username, amount);
     
-    // ACK
-    message->clearContents();
-    message->addContents((const unsigned char*)"TRANSFER_DONE", 14);
-    message->sendMessage(client);
-    message->clearContents();
 }
 
 void manageBalance(MessageInterface* message, std::string username, int client, sqlite3* db) {
