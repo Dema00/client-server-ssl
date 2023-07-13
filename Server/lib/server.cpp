@@ -263,7 +263,7 @@ void manageBalance(MessageInterface* message, std::string username, int client, 
 }
 
 void manageHistory(MessageInterface* message, std::string username, int client, sqlite3* db) {
-    int n_transactions = 9;
+    int n_transactions = stoi(std::string(std::getenv("HISTORY_SIZE")));
     std::vector<std::vector<unsigned char>> history = get_history(db, username, n_transactions);
     n_transactions = history.size();
     message->addContents((unsigned char*)&n_transactions,sizeof(int));
