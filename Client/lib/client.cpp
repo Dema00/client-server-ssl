@@ -183,17 +183,17 @@ void Client::clientLogin() {
         abort();
     }
     auth.clearContents();
-
-    // Receive nonce for challenge response
-    auth.receiveMessage(sd);
-    unsigned char nonce[SHA256_DIGEST_LENGTH];
-    memcpy(nonce, auth.getContents(), SHA256_DIGEST_LENGTH);
-
+    std::cout << "╰─┬─╼Insert the password for " << uname << ":" << std::endl;
     // Password authentication
     char psw[128];
     while (!login) {
-        std::cout << "╰─┬─╼Insert the password for " << uname << ":" << std::endl << 
-                     "  ├╼";
+
+        // Receive nonce for challenge response
+        auth.receiveMessage(sd);
+        unsigned char nonce[SHA256_DIGEST_LENGTH];
+        memcpy(nonce, auth.getContents(), SHA256_DIGEST_LENGTH);
+
+        std::cout << "  ├╼";
         memset(psw, 0, 128);
         GetInput(psw);
 
