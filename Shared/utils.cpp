@@ -34,14 +34,13 @@ int getSingleNumberInput() {
     bool validInput = false;
 
     do {
-        std::cout << "Enter a single number: ";
         std::cin >> input;
 
         // Check if the input is a valid number
         if (std::cin.good() && std::cin.peek() == '\n') {
             validInput = true;
         } else {
-            std::cout << "Invalid input. Please enter a single number." << std::endl;
+            std::cout << "╟╼(✖)Invalid input. Please enter a single number." << std::endl << "├╼";
             // Clear the input buffer to handle any additional characters
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -64,7 +63,7 @@ float getFloatInput() {
             // Valid input
             break;
         } else {
-            std::cout << "Invalid input. Please enter a valid floating-point number." << std::endl;
+            std::cout << "╟╼(✖)Invalid input. Please enter a valid floating-point number." << std::endl << "├╼";
             // Clear the input buffer
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
@@ -77,7 +76,8 @@ float getFloatInput() {
 double getDoubleInputWithMaxSize(size_t maxDigits) {
     std::string input;
 
-    std::cout << "Enter a number (maximum " << maxDigits << " digits): ";
+    std::cout << "  ├─╼Enter amount (maximum " << maxDigits << " digits): " << std::endl <<
+                 "  ├╼";
     std::getline(std::cin, input);
 
     // Validate input size

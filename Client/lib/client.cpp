@@ -3,7 +3,7 @@
 
 void Client::openConnection() {
     if (connect(this->sd, (struct sockaddr*)&this->addr, sizeof(this->addr)) != 0) {
-        std::cerr << "FAILED TO CONNECT" << "\n Is the server running?";
+        std::cerr << "╟╼(✖)Failed to connect, " << " is the server running?";
         close(this->sd);
         abort();
     }
@@ -21,7 +21,7 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
     inet_pton(AF_INET, this->hostname, &(this->addr.sin_addr));
 
     if (sqlite3_open_v2(db_path, &this->db, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
-        std::cerr << "ERROR WHILE OPENING DATABASE";
+        std::cerr << "╟╼(✖)Cannot open database";
         close(this->sd);
         abort();
     }
@@ -40,7 +40,7 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
     this->pub_key = PEM_read_bio_PUBKEY(public_key_bio, NULL, 0, NULL);
 
     if (this->pub_key == NULL) {
-        std::cerr << "Error while opening the public RSA key" << std::endl;
+        std::cerr << "╟╼(✖)Failed to open the public RSA key" << std::endl;
         exit(1);
     }
     BIO_free_all(public_key_bio);
@@ -52,6 +52,8 @@ void Client::startClient() {
     // Print welcome message
     std::string welcomeFile = "lib/ascii_art.txt";
     std::cout << ReadFile(welcomeFile) << std::endl;
+
+    std::cout << "╭──────╼ Hello " << uname << ", welcome back!" << std::endl;
 
     this->clientLogin();
 
@@ -83,7 +85,7 @@ buffer Client::symKeyEstablishment() {
     unsigned char eph_pubkey_raw[eph_pubkey_len];
     memmove(eph_pubkey_raw, ephrsa.getContents(), eph_pubkey_len);
     if (!ephrsa_pubkey) {
-        std::cerr << "Error: EPHRSA PUBKEY returned NULL\n";
+        std::cerr << "╟╼(✖)EPHRSA PUBKEY returned NULL\n";
         exit(1);
     }
     ephrsa.clearContents();
@@ -93,14 +95,14 @@ buffer Client::symKeyEstablishment() {
     std::string cacert_file_name = "../Keys/CA_cert.pem";
     FILE* cacert_file = fopen(cacert_file_name.c_str(), "r");
     if (!cacert_file) {
-        std::cerr << "Error: cannot open file '" << cacert_file_name << "' (missing?)\n";
+        std::cerr << "╟╼(✖): cannot open file '" << cacert_file_name << "' (missing?)\n";
         exit(1);
     }
     DEBUG_MSG(std::cout << "RAW CA CERT: \n" << BIO_dump_fp(stdout, (const char*)cacert_file, 1000) << std::endl;);
     X509* ca_cert = PEM_read_X509(cacert_file, NULL, NULL, NULL);
     fclose(cacert_file);
     if (!ca_cert) {
-        std::cerr << "Error: PEM_read_X509 returned NULL\n";
+        std::cerr << "╟╼(✖)PEM_read_X509 returned NULL\n";
         exit(1);
     }
 
@@ -109,13 +111,13 @@ buffer Client::symKeyEstablishment() {
     FILE* crl_file = fopen(crl_file_name.c_str(), "r");
     DEBUG_MSG(std::cout << "RAW CA CRL: \n" << BIO_dump_fp(stdout, (const char*)crl_file, 1000) << std::endl;);
     if (!crl_file) {
-        std::cerr << "Error: cannot open file '" << crl_file_name << "' (missing?)\n";
+        std::cerr << "╟╼(✖)Cannot open file '" << crl_file_name << "' (missing?)\n";
         exit(1);
     }
     X509_CRL* ca_crl = PEM_read_X509_CRL(crl_file, NULL, NULL, NULL);
     fclose(crl_file);
     if (!ca_crl) {
-        std::cerr << "Error: PEM_read_X509_CRL returned NULL\n";
+        std::cerr << "╟╼(✖)PEM_read_X509_CRL returned NULL\n";
         exit(1);
     }
 
@@ -176,7 +178,7 @@ void Client::clientLogin() {
     // Receive response for username
     auth.receiveMessage(sd);
     if (strcmp((const char*)auth.getContents(), "USERNAME_OK") != 0) {
-        std::cerr << "USERNAME NOT FOUND";
+        std::cerr << "╟╼(✖)User is not a client";
         close(this->sd);
         abort();
     }
@@ -190,7 +192,8 @@ void Client::clientLogin() {
     // Password authentication
     char psw[128];
     while (!login) {
-        std::cout << "Insert the password for " << uname << ":" << std::endl;
+        std::cout << "╰─┬─╼Insert the password for " << uname << ":" << std::endl << 
+                     "  ├╼";
         memset(psw, 0, 128);
         GetInput(psw);
 
@@ -206,12 +209,13 @@ void Client::clientLogin() {
         auth.clearContents();
         auth.receiveMessage(sd);
         if (strcmp((const char*)auth.getContents(), "PASSWORD_OK") == 0) {
-            std::cerr << "Logged in successfully!" << std::endl;
+            std::cerr << "  ├╼(✓)Logged in successfully!" << std::endl;
             login = true;
         } else {
-            std::cerr << "Wrong password!" << std::endl;
+            std::cerr << "  ╟╼(✖)Wrong password!" << std::endl;
         }
     }
+    std:: cout <<"╭─╯" << std::endl;
 }
 
 void Client::stopClient() {
@@ -224,23 +228,6 @@ void Client::sendMessage(const char* message, std::size_t msg_size) {
     to_send->addContents((const unsigned char*)message, strlen(message));
     to_send->sendMessage(this->sd);
     delete to_send;
-}
-
-void Client::messagePrinter(buffer symkey) {
-    MessageInterface* received = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
-    DEBUG_MSG(std::cout << "created msgPrinter message" << std::endl;);
-
-    while (1) {
-        received->receiveMessage(this->sd);
-        if (received->getStatus() != OK) {
-            std::cerr << "Message was not delivered correctly" << std::endl;
-            close(this->sd);
-            break;
-        }
-        std::cout << received->getContents() << std::endl;
-        received->clearContents();
-    }
-    delete received;
 }
 
 std::pair<int,double> Balance(MessageInterface* message, int sd) {
@@ -259,11 +246,12 @@ std::pair<int,double> Balance(MessageInterface* message, int sd) {
     return balance;
 }
 
-void manageBalance(MessageInterface* message, int sd) {
+void manageBalance(MessageInterface* message, int sd, std::string uname) {
     std::pair<int,double> balance = Balance(message,sd);
-    std::cout << "╔═════════════════\n" <<"║Account ID : " << balance.first << std::endl
-        << "║Account balance : " << balance.second << std::endl
-        << "╚═════════════════" << std::endl; 
+    std::cout << "╰─┬──╼ Account information of " << uname << std::endl <<
+                 "  ├╼ID : " << balance.first << std::endl << 
+                 "  ├╼€  :" << balance.second << std::endl <<
+                 "╭─╯" << std::endl;
 }
 
 bool Transfer(MessageInterface* message, std::string recipient, double amount, int sd) {
@@ -281,10 +269,10 @@ bool Transfer(MessageInterface* message, std::string recipient, double amount, i
     bool success = false;
     //check for errors
     if (std::string((char *)message->getContents()) == "RECIPIENT_ERROR") {
-        std::cerr << "Recipient is not a client!" << std::endl;
+        std::cerr << "  ╟╼(✖)Recipient is not a client!" << std::endl;
         return false;
     } else if (std::string((char *)message->getContents()) == "NOT_ENOUGH_MONEY") {
-        std::cerr << "Not enoug money in account!" << std::endl;
+        std::cerr << "  ╟╼(✖)Not enoug money in account!" << std::endl;
         return false;
     } else if (std::string((char *)message->getContents()) == "TRANSFER_DONE") {
         success = true;
@@ -295,19 +283,24 @@ bool Transfer(MessageInterface* message, std::string recipient, double amount, i
 }
 
 void manageTransfer(MessageInterface* message, int sd) {
-    std::cout << "Insert recipient name: " << std::endl;
+    std::cout << 
+            "╰─┬──╼ Transfering money" << std::endl <<
+            "  ├─╼Insert recipient name: " << std::endl << 
+            "  ├╼";
     std::string recipient = getStringInputWithMaxSize(message->getReserved());
-    double amount = getDoubleInputWithMaxSize(4);
+    double amount = getDoubleInputWithMaxSize(10);
     if (amount <= 0) {
-        std::cerr << "Cannot send no or negative money!" << std::endl;
+        std::cerr << "  ╟╼(✖)Cannot send no or negative money!" << std::endl <<
+                     "╭─╯" << std::endl;
         return;
     }
     bool success = Transfer(message,recipient,amount,sd);
     if (success) {
-        std::cout << "Transfer completed correctly!" << std::endl;
+        std::cout << "  ├╼(✓)Transfer completed correctly!" << std::endl;
     } else {
-        std::cerr << "Error during transfer!" << std::endl;
+        std::cerr << "  ╟╼(✖)Error during transfer!" << std::endl;
     }
+    std:: cout <<"╭─╯" << std::endl;
 }
 
 void manageHistory(MessageInterface* message, int sd, std::string uname) {
@@ -321,7 +314,7 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
     int t_amount = 0;
     memmove(&t_amount,message->getContents(),sizeof(int));
     int skip = sizeof(int);
-
+    std::cout << "╰─┬──╼Transfer History \n";
     for (int c = 1; c <= t_amount; c++) {
         double amount = 0;
         std::string timestamp;
@@ -334,32 +327,37 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
         snd_username = std::string((char*)message->getContents()+skip+sizeof(double)+20+rec_username.size()+1);
 
         skip = sizeof(int) + c*(sizeof(double)+20+rec_username.size()+1+snd_username.size()+1);
-
         if (snd_username != uname) {
-            std::cout << "╠══════════════════\n" << "║received " << amount << 
-            " euros \n║from " << snd_username << "\n║on " << timestamp
+            std::cout <<  "  ├──╼ " << timestamp<< 
+                        "\n  ├╼received :" << amount << " euros" <<
+                        "\n  ├╼from     :" << snd_username
              << std::endl;
         } else {
-            std::cout << "╠══════════════════\n" << "║sent " << amount <<
-            " euros \n║to " << rec_username << "\n║on " << timestamp
+            std::cout <<  "  ├──╼ " << timestamp << 
+                        "\n  ├╼sent :" << amount <<" euros" << 
+                        "\n  ├╼to   :" << rec_username
              << std::endl;
         }
-
     }
+    std::cout << "╭─╯" << std::endl;
 }
 
 void Client::clientProcess(buffer symkey) {
-    //std::thread printer(&Client::messagePrinter, this, symkey);
     MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
     DEBUG_MSG(std::cout << "created sendMessage message" << std::endl;);
     int choice = 0;
     bool running = true;
     while (running) {
-        std::cout << "What do you want to do?\n1 -> view balance\n2 -> transfer money \n3 -> recent transfers\n4 -> quit" << std::endl;
+        std::cout << "├─╼Select operation" << std::endl <<
+                     "├─╼1: view balance\n" <<
+                     "├─╼2: transfer money \n" <<
+                     "├─╼3: recent transfers\n" <<
+                     "├─╼4: quit" << std::endl <<
+                     "├╼";
         choice = getSingleNumberInput();
         switch (choice) {
             case 1:
-                manageBalance(to_send,sd);
+                manageBalance(to_send,sd, std::string(uname));
                 break;
             case 2:
                 manageTransfer(to_send,sd);
@@ -371,10 +369,11 @@ void Client::clientProcess(buffer symkey) {
                 to_send->clearContents();
                 to_send->addContents((const unsigned char*)"QUIT",5);    
                 to_send->sendMessage(sd);
+                std::cout << "╰──────╼ Closing client"<<std::endl;
                 running = false;
                 break;
             default:
-                std::cout << "Not a valid operation!" << std::endl;
+                std::cout << "╟╼(✖)Not a valid operation!" << std::endl;
         }
         DEBUG_MSG(std::cout << "Sent message" << std::endl;);
         to_send->clearContents();
