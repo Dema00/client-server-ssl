@@ -249,8 +249,8 @@ std::pair<int,double> Balance(MessageInterface* message, int sd) {
 void manageBalance(MessageInterface* message, int sd, std::string uname) {
     std::pair<int,double> balance = Balance(message,sd);
     std::cout << "╰─┬──╼ Account information of " << uname << std::endl <<
-                 "  ├╼ID : " << balance.first << std::endl << 
-                 "  ├╼€  :" << balance.second << std::endl <<
+                 "  ├╼ID      : " << balance.first << std::endl << 
+                 "  ├╼balance :" << balance.second << std::endl <<
                  "╭─╯" << std::endl;
 }
 
@@ -353,28 +353,34 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
 
     int t_amount = 0;
     memmove(&t_amount,message->getContents(),sizeof(int));
-    int skip = sizeof(int);
+    bool first = true;
 
     auto list_of_transfers = History(message,sd,uname);
 
     std::cout << "╰─┬──╼Transfer History \n";
     for (auto& transaction : list_of_transfers) {
+        if (!first) {
+            std::cout << "  ╭╯" << std::endl;
+        } else {
+            first = false;
+        }
         std::string t_uname =  std::get<0>(transaction);
         double amount = std::get<1>(transaction);
         std::string timestamp = std::get<2>(transaction);
         if (std::get<1>(transaction) >= 0 ) {
-            std::cout <<  "  ├─╼ " << timestamp<< 
-                        "\n  ├╼received :" << amount << " euros" <<
-                        "\n  ├╼from     :" << t_uname
-             << std::endl;
+            std::cout <<  "  ╰┬──╼Received " <<
+                        "\n   ├╼amount : " << amount << "€" <<
+                        "\n   ├╼on : " << timestamp <<
+            std::endl;
         } else {
-            std::cout <<  "  ├─╼ " << timestamp << 
-                        "\n  ├╼sent :" << -amount <<" euros" << 
-                        "\n  ├╼to   :" << t_uname
-             << std::endl;
+            std::cout <<  "  ╰┬──╼Sent " <<
+                        "\n   ├╼amount :" << -amount <<"€" << 
+                        "\n   ├╼to     :" << t_uname <<
+                        "\n   ├╼on : " << timestamp <<
+            std::endl;
         }
     }
-    std::cout << "╭─╯" << std::endl;
+    std::cout << "╭──╯" << std::endl;
 }
 
 void Client::clientProcess(buffer symkey) {
