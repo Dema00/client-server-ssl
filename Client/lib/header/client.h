@@ -19,6 +19,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <tuple>
 
 class Client {
     private:

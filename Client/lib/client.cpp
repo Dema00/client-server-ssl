@@ -303,7 +303,8 @@ void manageTransfer(MessageInterface* message, int sd) {
     std:: cout <<"╭─╯" << std::endl;
 }
 
-void manageHistory(MessageInterface* message, int sd, std::string uname) {
+std::vector<std::tuple<std::string,double,std::string>> 
+    History(MessageInterface* message, int sd, std::string uname) {
     message->clearContents();
     message->addContents((const unsigned char*)"3",2);    
     message->sendMessage(sd);
@@ -311,10 +312,11 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
 
     message->receiveMessage(sd);
 
+    std::vector<std::tuple<std::string,double,std::string>> list_of_transfers;
+
     int t_amount = 0;
     memmove(&t_amount,message->getContents(),sizeof(int));
     int skip = sizeof(int);
-    std::cout << "╰─┬──╼Transfer History \n";
     for (int c = 1; c <= t_amount; c++) {
         double amount = 0;
         std::string timestamp;
@@ -328,14 +330,47 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
 
         skip = sizeof(int) + c*(sizeof(double)+20+rec_username.size()+1+snd_username.size()+1);
         if (snd_username != uname) {
-            std::cout <<  "  ├──╼ " << timestamp<< 
+            list_of_transfers.push_back(
+                std::tuple<std::string,double,std::string>
+                (snd_username,amount,timestamp));
+        } else {
+            list_of_transfers.push_back(
+               std::tuple<std::string,double,std::string>
+               (rec_username,-amount,timestamp));
+        }
+    }
+
+    return list_of_transfers;
+}
+
+void manageHistory(MessageInterface* message, int sd, std::string uname) {
+    message->clearContents();
+    message->addContents((const unsigned char*)"3",2);    
+    message->sendMessage(sd);
+    message->clearContents();
+
+    message->receiveMessage(sd);
+
+    int t_amount = 0;
+    memmove(&t_amount,message->getContents(),sizeof(int));
+    int skip = sizeof(int);
+
+    auto list_of_transfers = History(message,sd,uname);
+
+    std::cout << "╰─┬──╼Transfer History \n";
+    for (auto& transaction : list_of_transfers) {
+        std::string t_uname =  std::get<0>(transaction);
+        double amount = std::get<1>(transaction);
+        std::string timestamp = std::get<2>(transaction);
+        if (std::get<1>(transaction) >= 0 ) {
+            std::cout <<  "  ├─╼ " << timestamp<< 
                         "\n  ├╼received :" << amount << " euros" <<
-                        "\n  ├╼from     :" << snd_username
+                        "\n  ├╼from     :" << t_uname
              << std::endl;
         } else {
-            std::cout <<  "  ├──╼ " << timestamp << 
-                        "\n  ├╼sent :" << amount <<" euros" << 
-                        "\n  ├╼to   :" << rec_username
+            std::cout <<  "  ├─╼ " << timestamp << 
+                        "\n  ├╼sent :" << -amount <<" euros" << 
+                        "\n  ├╼to   :" << t_uname
              << std::endl;
         }
     }
