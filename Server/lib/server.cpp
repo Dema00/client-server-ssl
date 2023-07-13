@@ -162,6 +162,11 @@ void Server::sessionHandler(int client) {
         auth_msg.clearContents();
 
         auth_msg.receiveMessage(client);
+        if (auth_msg.getStatus() != OK) {
+            std::cerr << "client disconncted during login" << std::endl;
+            close(client);
+            return;
+        }
         unsigned char psw_hash[SHA256_DIGEST_LENGTH];
         memset(psw_hash, 0, SHA256_DIGEST_LENGTH);
         get_user_psw(db, username, psw_hash);
