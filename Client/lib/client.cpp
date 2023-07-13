@@ -3,9 +3,9 @@
 
 void Client::openConnection() {
     if (connect(this->sd, (struct sockaddr*)&this->addr, sizeof(this->addr)) != 0) {
-        std::cerr << "╟╼(✖)Failed to connect, " << " is the server running?";
+        std::cerr << "╰╼(✖)Failed to connect, " << " is the server running?";
         close(this->sd);
-        abort();
+        exit(1);
     }
     printf("Connected with hostname %s and port %i \n", this->hostname, this->addr.sin_port);
 }
@@ -21,9 +21,9 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
     inet_pton(AF_INET, this->hostname, &(this->addr.sin_addr));
 
     if (sqlite3_open_v2(db_path, &this->db, SQLITE_OPEN_READWRITE, NULL) != SQLITE_OK) {
-        std::cerr << "╟╼(✖)Cannot open database";
+        std::cerr << "╰╼(✖)Cannot open database";
         close(this->sd);
-        abort();
+        exit(1);
     }
 
     unsigned char pkey[2000];
@@ -33,6 +33,8 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
     this->priv_key = PEM_read_bio_PrivateKey(private_key_bio, NULL, 0, NULL);
     BIO_free(private_key_bio);
 
+    //DEBUG_MSG(print_EVP_PrivKEY(this->priv_key););
+
     std::ifstream input("../Keys/public_server.pem", std::ios::binary);
     std::vector<unsigned char> pubkey_vec(std::istreambuf_iterator<char>(input), {});
 
@@ -40,7 +42,7 @@ Client::Client(const char* hostname, int port, const char* uname, const char* db
     this->pub_key = PEM_read_bio_PUBKEY(public_key_bio, NULL, 0, NULL);
 
     if (this->pub_key == NULL) {
-        std::cerr << "╟╼(✖)Failed to open the public RSA key" << std::endl;
+        std::cerr << "╰╼(✖)Failed to open the public RSA key" << std::endl;
         exit(1);
     }
     BIO_free_all(public_key_bio);
@@ -85,7 +87,7 @@ buffer Client::symKeyEstablishment() {
     unsigned char eph_pubkey_raw[eph_pubkey_len];
     memmove(eph_pubkey_raw, ephrsa.getContents(), eph_pubkey_len);
     if (!ephrsa_pubkey) {
-        std::cerr << "╟╼(✖)EPHRSA PUBKEY returned NULL\n";
+        std::cerr << "╰╼(✖)EPHRSA PUBKEY returned NULL\n";
         exit(1);
     }
     ephrsa.clearContents();
@@ -95,14 +97,14 @@ buffer Client::symKeyEstablishment() {
     std::string cacert_file_name = "../Keys/CA_cert.pem";
     FILE* cacert_file = fopen(cacert_file_name.c_str(), "r");
     if (!cacert_file) {
-        std::cerr << "╟╼(✖): cannot open file '" << cacert_file_name << "' (missing?)\n";
+        std::cerr << "╰╼(✖): cannot open file '" << cacert_file_name << "' (missing?)\n";
         exit(1);
     }
     DEBUG_MSG(std::cout << "RAW CA CERT: \n" << BIO_dump_fp(stdout, (const char*)cacert_file, 1000) << std::endl;);
     X509* ca_cert = PEM_read_X509(cacert_file, NULL, NULL, NULL);
     fclose(cacert_file);
     if (!ca_cert) {
-        std::cerr << "╟╼(✖)PEM_read_X509 returned NULL\n";
+        std::cerr << "╰╼(✖)PEM_read_X509 returned NULL\n";
         exit(1);
     }
 
@@ -111,13 +113,13 @@ buffer Client::symKeyEstablishment() {
     FILE* crl_file = fopen(crl_file_name.c_str(), "r");
     DEBUG_MSG(std::cout << "RAW CA CRL: \n" << BIO_dump_fp(stdout, (const char*)crl_file, 1000) << std::endl;);
     if (!crl_file) {
-        std::cerr << "╟╼(✖)Cannot open file '" << crl_file_name << "' (missing?)\n";
+        std::cerr << "╰╼(✖)Cannot open file '" << crl_file_name << "' (missing?)\n";
         exit(1);
     }
     X509_CRL* ca_crl = PEM_read_X509_CRL(crl_file, NULL, NULL, NULL);
     fclose(crl_file);
     if (!ca_crl) {
-        std::cerr << "╟╼(✖)PEM_read_X509_CRL returned NULL\n";
+        std::cerr << "╰╼(✖)PEM_read_X509_CRL returned NULL\n";
         exit(1);
     }
 
@@ -178,9 +180,9 @@ void Client::clientLogin() {
     // Receive response for username
     auth.receiveMessage(sd);
     if (strcmp((const char*)auth.getContents(), "USERNAME_OK") != 0) {
-        std::cerr << "╟╼(✖)User is not a client";
+        std::cerr << "╰╼(✖)User is already logged in" << std::endl;
         close(this->sd);
-        abort();
+        exit(1);
     }
     auth.clearContents();
     std::cout << "╰─┬─╼Insert the password for " << uname << ":" << std::endl;
@@ -370,6 +372,7 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
         if (std::get<1>(transaction) >= 0 ) {
             std::cout <<  "  ╰┬──╼Received " <<
                         "\n   ├╼amount : " << amount << "€" <<
+                        "\n   ├╼from     :" << t_uname <<
                         "\n   ├╼on : " << timestamp <<
             std::endl;
         } else {

@@ -3,6 +3,11 @@
 
 // Server constructor
 Server::Server(int portnum, const char* db_path): threads() {
+    if (std::getenv("HISTORY_SIZE") == NULL){
+        std::cerr << "set environment variable HISTORY_SIZE" << std::endl;
+        exit(1);
+    }
+
     // Create a socket
     this->sd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -144,6 +149,7 @@ void Server::sessionHandler(int client) {
         auth_msg.sendMessage(client);
         auth_msg.clearContents();
         close(client);
+        return;
     }
 
     // Handle password

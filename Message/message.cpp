@@ -262,6 +262,8 @@ void AddRSA::decryptMessage() {
     unsigned char len_str [3];
     int cipher_len;
 
+    DEBUG_MSG(std::cout<<"msg in rsa cipher: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()+1) <<std::endl;);
+
 
     int iv_size = EVP_CIPHER_iv_length(EVP_aes_256_xts());
     int ekey_size = EVP_PKEY_size(key);
