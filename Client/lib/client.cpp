@@ -372,7 +372,7 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
         if (std::get<1>(transaction) >= 0 ) {
             std::cout <<  "  ╰┬──╼Received " <<
                         "\n   ├╼amount : " << amount << "€" <<
-                        "\n   ├╼from     :" << t_uname <<
+                        "\n   ├╼from   :" << t_uname <<
                         "\n   ├╼on : " << timestamp <<
             std::endl;
         } else {
@@ -392,7 +392,7 @@ void Client::clientProcess(buffer symkey) {
     int choice = 0;
     bool running = true;
     while (running) {
-        std::cout << "├─╼Select operation" << std::endl <<
+        std::cout << "├──╼Select operation" << std::endl <<
                      "├─╼1: view balance\n" <<
                      "├─╼2: transfer money \n" <<
                      "├─╼3: recent transfers\n" <<
