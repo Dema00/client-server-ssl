@@ -331,11 +331,13 @@ int sign(unsigned char* plaintext, int plaintext_len, EVP_PKEY* priv_key, unsign
 }
 
 void sha256(const unsigned char* input, int len, unsigned char* out){
-    //unsigned char hash[SHA256_DIGEST_LENGTH];
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(mdctx, EVP_sha256(), nullptr);
 
-    SHA256_CTX sha256;
-    SHA256_Init(&sha256);
-    SHA256_Update(&sha256, input, len);
-    SHA256_Final(out, &sha256);
+    EVP_DigestUpdate(mdctx, input, len);
+
+    EVP_DigestFinal_ex(mdctx, out, NULL);
+
+    EVP_MD_CTX_free(mdctx);
         DEBUG_MSG(std::cout<<"HASH: \n" << BIO_dump_fp (stdout, (const char *)out, SHA256_DIGEST_LENGTH) <<std::endl;);
 }
