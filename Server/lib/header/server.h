@@ -63,7 +63,7 @@ class Server {
         void serverControlPanel();
 
         void connectionManager();
-        buffer symkeyExchange(int client);
+        std::pair<buffer,buffer> symkeyExchange(int client);
         void operationManager(MessageInterface* message,std::string username,int client);
 
         void sessionHandler(int client);

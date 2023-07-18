@@ -192,10 +192,10 @@ void Server::sessionHandler(int client) {
     }
 
     // Perform symmetric key exchange
-    buffer symkey = this->symkeyExchange(client);
+    std::pair<buffer,buffer> session_keys = this->symkeyExchange(client);
 
     // Initialize message communication with encryption and integrity protection
-    MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
+    MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), session_keys.second.data()), session_keys.first.data(), session_keys.first.data()));
 
     while (login && status.load() == RUN) {
 
@@ -309,7 +309,7 @@ void Server::operationManager(MessageInterface* message, std::string username, i
 }
 
 // Symmetric key exchange between server and client
-buffer Server::symkeyExchange(int client) {
+std::pair<buffer,buffer> Server::symkeyExchange(int client) {
     Message ephrsa_msg(2048);
 
     // Receive nonce for ephemeral key exchange
@@ -362,7 +362,9 @@ buffer Server::symkeyExchange(int client) {
 
     // Extract symmetric key from received message
     std::vector<unsigned char> symkey;
+    std::vector<unsigned char> mackey;
     symkey.insert(symkey.begin(), receive_symkey->getContents(), receive_symkey->getContents() + 64);
+    mackey.insert(mackey.begin(), receive_symkey->getContents() + 64, receive_symkey->getContents() + 64 + 64);
 
     delete receive_symkey;
 
@@ -371,5 +373,5 @@ buffer Server::symkeyExchange(int client) {
     EVP_PKEY_free(keypair.first);
     EVP_PKEY_free(keypair.second);
 
-    return symkey;
+    return {symkey,mackey};
 }

@@ -59,12 +59,12 @@ void Client::startClient() {
 
     this->clientLogin();
 
-    buffer symkey = this->symKeyEstablishment();
+    std::pair<buffer,buffer> symkeys = this->symKeyEstablishment();
 
-    this->clientProcess(symkey);
+    this->clientProcess(symkeys);
 }
 
-buffer Client::symKeyEstablishment() {
+std::pair<buffer,buffer> Client::symKeyEstablishment() {
     Message ephrsa(2048);
 
     // Send nonce for ephemeral key exchange
@@ -150,10 +150,10 @@ buffer Client::symKeyEstablishment() {
 
     //Generate and send the symmetric key
     unsigned char symkey[512];
-    RAND_bytes(symkey, 64);
+    RAND_bytes(symkey, 64+64);
 
     MessageInterface* symkey_send = new AddRSA(new Message(64), ephrsa_pubkey);
-    symkey_send->addContents(symkey, 64);
+    symkey_send->addContents(symkey, 64+64);
     symkey_send->sendMessage(sd);
     symkey_send->clearContents();
     delete symkey_send;
@@ -163,9 +163,11 @@ buffer Client::symKeyEstablishment() {
     EVP_PKEY_free(ephrsa_pubkey);
 
     std::vector<unsigned char> symkey_buf;
+    std::vector<unsigned char> mackey_buf;
     symkey_buf.insert(symkey_buf.begin(), symkey, symkey + 64);
+    mackey_buf.insert(mackey_buf.begin(), symkey+64, symkey +64 +64);
 
-    return symkey_buf;
+    return {symkey_buf,mackey_buf};
 }
 
 void Client::clientLogin() {
@@ -386,8 +388,8 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
     std::cout << "╭──╯" << std::endl;
 }
 
-void Client::clientProcess(buffer symkey) {
-    MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkey.data()), symkey.data(), symkey.data()));
+void Client::clientProcess(std::pair<buffer,buffer> symkeys) {
+    MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkeys.second.data()), symkeys.first.data(), symkeys.first.data()));
     DEBUG_MSG(std::cout << "created sendMessage message" << std::endl;);
     int choice = 0;
     bool running = true;
