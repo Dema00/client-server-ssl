@@ -195,7 +195,7 @@ void Server::sessionHandler(int client) {
     std::pair<buffer,buffer> session_keys = this->symkeyExchange(client);
 
     // Initialize message communication with encryption and integrity protection
-    MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), session_keys.second.data()), session_keys.first.data(), session_keys.first.data()));
+    MessageInterface* comm = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), session_keys.second.data()), session_keys.first.data()));
 
     while (login && status.load() == RUN) {
 

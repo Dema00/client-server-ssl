@@ -291,8 +291,8 @@ void AddRSA::decryptMessage() {
 //  %    AES 256    %-----------------------------------------------------------------------
 //  %%%%%%%%%%%%%%%%%
 
-AddAES256::AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv)
-    : MessageDecorator(message), key{key}, iv{iv} {};
+AddAES256::AddAES256(MessageInterface* message, unsigned char* key)
+    : MessageDecorator(message), key{key} {};
 
 void AddAES256::sendMessage(int sd) {
     unsigned char ciphertext[this->getReserved()];
@@ -301,19 +301,23 @@ void AddAES256::sendMessage(int sd) {
     int plaintext_len = wrapped_message->getContentsSize();
     wrapped_message->addContentsBeginning((unsigned char *)&plaintext_len,sizeof(int));
         DEBUG_MSG(std::cout<<"msg out after int: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
-    //unsigned char plaintext[this->getReserved()];
-    //memset(plaintext, 0, getReserved());
-    //memcpy(plaintext,wrapped_message->getContents(),getReserved());
-    int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved(), this->key, this->iv, ciphertext);
+
+    unsigned char msg_iv[64];
+    RAND_bytes(msg_iv,64);
+    int len = encrypt(wrapped_message->getContentsMut(), wrapped_message->getReserved(), this->key, msg_iv, ciphertext);
     wrapped_message->clearContents();
+    //resizing for IV
+    wrapped_message->getBuffer()->reserve(wrapped_message->getReserved()+64);
+    wrapped_message->addContents(msg_iv,64);
     wrapped_message->addContents(ciphertext, len);
         DEBUG_MSG(std::cout<<"msg out enc: \n" << BIO_dump_fp (stdout, (const char *)getContents(), getContentsSize()) <<std::endl;);
     this->wrapped_message->sendMessage(sd);
-    //wrapped_message->clearContents();
-    //wrapped_message->addContents(plaintext, getReserved());
+    getBuffer()->resize(getReserved()-64);
 }
 
 void AddAES256::receiveMessage(int sd) {
+    //resizing for IV
+    getBuffer()->reserve(getReserved()+64);
     wrapped_message->receiveMessage(sd);
     finalizeReception();
 }
@@ -331,14 +335,17 @@ void AddAES256::decryptMessage() {
     unsigned char plaintext[this->getReserved()];
     memset(plaintext, 0, getReserved());
 
-    decrypt(getContentsMut(), getContentsSize(), this->key, this->iv, plaintext);
+    unsigned char msg_iv [64];
+    memmove(msg_iv,getContents(),64);
+
+    decrypt(getContentsMut()+64, getContentsSize(), this->key, msg_iv, plaintext);
 
     int plaintext_len = 0;
     memcpy((unsigned char*)&plaintext_len,plaintext,sizeof(int));
         DEBUG_MSG(std::cout << "pl len " << plaintext_len << std::endl;);
 
         DEBUG_MSG(std::cout<<"msg in dec: \n" << BIO_dump_fp (stdout, (const char *)plaintext, getReserved()) <<std::endl;);
-
+    getBuffer()->resize(getReserved()-64);
     this->wrapped_message->clearContents();
     this->wrapped_message->addContents((unsigned char*)plaintext+sizeof(int), plaintext_len);
     //this->wrapped_message->getBuffer()->resize(strlen((const char*)wrapped_message->getContents()));

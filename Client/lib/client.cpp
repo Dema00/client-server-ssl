@@ -389,7 +389,7 @@ void manageHistory(MessageInterface* message, int sd, std::string uname) {
 }
 
 void Client::clientProcess(std::pair<buffer,buffer> symkeys) {
-    MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkeys.second.data()), symkeys.first.data(), symkeys.first.data()));
+    MessageInterface* to_send = new AddTimestamp(new AddAES256(new AddMAC(new Message(512), symkeys.second.data()), symkeys.first.data()));
     DEBUG_MSG(std::cout << "created sendMessage message" << std::endl;);
     int choice = 0;
     bool running = true;

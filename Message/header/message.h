@@ -138,9 +138,8 @@ class MessageDecorator: public MessageInterface {
 class AddAES256: public MessageDecorator {
     protected:
         unsigned char* key;
-        unsigned char* iv;
     public:
-        AddAES256(MessageInterface* message, unsigned char* key, unsigned char* iv);
+        AddAES256(MessageInterface* message, unsigned char* key);
         void decryptMessage();
         void sendMessage(int sd) override;
         void receiveMessage(int sd) override;
