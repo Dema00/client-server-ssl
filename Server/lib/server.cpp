@@ -156,7 +156,9 @@ void Server::sessionHandler(int client) {
     while (!login) {
         // Send nonce for challenge response
         unsigned char nonce_buf[SHA256_DIGEST_LENGTH];
-        RAND_bytes(nonce_buf, SHA256_DIGEST_LENGTH);
+        if (RAND_bytes(nonce_buf, SHA256_DIGEST_LENGTH) != 1) {
+            exit(1);
+        };
         auth_msg.addContents(nonce_buf, SHA256_DIGEST_LENGTH);
         auth_msg.sendMessage(client);
         auth_msg.clearContents();

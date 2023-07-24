@@ -74,7 +74,9 @@ std::pair<buffer,buffer> Client::symKeyEstablishment() {
     ephrsa.clearContents();
     unsigned char nonce[SHA256_DIGEST_LENGTH];
     memset(nonce, 0, SHA256_DIGEST_LENGTH);
-    RAND_bytes(nonce, SHA256_DIGEST_LENGTH);
+    if (RAND_bytes(nonce, SHA256_DIGEST_LENGTH) != 1){
+        exit(1);
+    };
     nonce_msg->addContents(nonce, SHA256_DIGEST_LENGTH);
     nonce_msg->sendMessage(sd);
     nonce_msg->clearContents();
@@ -153,7 +155,9 @@ std::pair<buffer,buffer> Client::symKeyEstablishment() {
 
     //Generate and send the symmetric key
     unsigned char symkey[512];
-    RAND_bytes(symkey, 64+64);
+    if (RAND_bytes(symkey, 64+64) != 1 ) {
+        exit(1);
+    };
 
     MessageInterface* symkey_send = new AddRSA(new Message(64), ephrsa_pubkey);
     symkey_send->addContents(symkey, 64+64);
