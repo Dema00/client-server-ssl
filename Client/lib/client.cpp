@@ -65,6 +65,9 @@ void Client::startClient() {
 }
 
 std::pair<buffer,buffer> Client::symKeyEstablishment() {
+
+    MessageInterface* nonce_msg = new AddRSA( (new Message(2048)), pub_key);
+
     Message ephrsa(2048);
 
     // Send nonce for ephemeral key exchange
@@ -72,9 +75,9 @@ std::pair<buffer,buffer> Client::symKeyEstablishment() {
     unsigned char nonce[SHA256_DIGEST_LENGTH];
     memset(nonce, 0, SHA256_DIGEST_LENGTH);
     RAND_bytes(nonce, SHA256_DIGEST_LENGTH);
-    ephrsa.addContents(nonce, SHA256_DIGEST_LENGTH);
-    ephrsa.sendMessage(sd);
-    ephrsa.clearContents();
+    nonce_msg->addContents(nonce, SHA256_DIGEST_LENGTH);
+    nonce_msg->sendMessage(sd);
+    nonce_msg->clearContents();
 
     // Receive ERSA pubkey
     ephrsa.receiveMessage(sd);
@@ -162,7 +165,9 @@ std::pair<buffer,buffer> Client::symKeyEstablishment() {
     memset(eph_pubkey_raw, 0, eph_pubkey_len);
     EVP_PKEY_free(ephrsa_pubkey);
 
+    //Cipher key
     std::vector<unsigned char> symkey_buf;
+    //MAC key
     std::vector<unsigned char> mackey_buf;
     symkey_buf.insert(symkey_buf.begin(), symkey, symkey + 64);
     mackey_buf.insert(mackey_buf.begin(), symkey+64, symkey +64 +64);

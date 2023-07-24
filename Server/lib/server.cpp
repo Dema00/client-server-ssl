@@ -310,14 +310,17 @@ void Server::operationManager(MessageInterface* message, std::string username, i
 
 // Symmetric key exchange between server and client
 std::pair<buffer,buffer> Server::symkeyExchange(int client) {
+
+    MessageInterface* nonce_msg = new AddRSA(new Message(2048), priv_key);
+
     Message ephrsa_msg(2048);
 
     // Receive nonce for ephemeral key exchange
     unsigned char nonce_buf[SHA256_DIGEST_LENGTH];
-    ephrsa_msg.receiveMessage(client);
+    nonce_msg->receiveMessage(client);
     memset(nonce_buf, 0, SHA256_DIGEST_LENGTH);
-    memcpy(nonce_buf, ephrsa_msg.getContents(), SHA256_DIGEST_LENGTH);
-    ephrsa_msg.clearContents();
+    memcpy(nonce_buf, nonce_msg->getContents(), SHA256_DIGEST_LENGTH);
+    nonce_msg->clearContents();
 
     // Generate RSA key pair
     std::pair<EVP_PKEY*, EVP_PKEY*> keypair;

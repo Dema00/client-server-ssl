@@ -341,3 +341,5 @@ void sha256(const unsigned char* input, int len, unsigned char* out){
     EVP_MD_CTX_free(mdctx);
         DEBUG_MSG(std::cout<<"HASH: \n" << BIO_dump_fp (stdout, (const char *)out, SHA256_DIGEST_LENGTH) <<std::endl;);
 }
+
+
